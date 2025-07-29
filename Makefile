@@ -167,4 +167,31 @@ check:
 	@if [ ! -f "$(CJSON_DIR)/cJSON.c" ]; then echo "Warning: cJSON not found, run 'make deps' first"; fi
 	@echo "Check complete."
 
-.PHONY: all clean distclean deps test debug protocol transport application tools utils info check
+# Create distribution package for easy integration
+dist: debug
+	@echo "Creating distribution package..."
+	@mkdir -p dist/embed_mcp/include/embed_mcp
+	@mkdir -p dist/embed_mcp/lib
+	@mkdir -p dist/embed_mcp/examples
+
+	# Copy headers with proper structure
+	@cp include/embed_mcp.h dist/embed_mcp/include/embed_mcp/
+	@cp cjson/cJSON.h dist/embed_mcp/include/embed_mcp/
+
+	# Create static library
+	@mkdir -p lib
+	@ar rcs lib/libembed_mcp.a $(OBJ_DIR)/embed_mcp.o $(CJSON_DIR)/cJSON.o $(PROTOCOL_OBJECTS) $(TRANSPORT_OBJECTS) $(TOOLS_OBJECTS) $(UTILS_OBJECTS)
+	@cp lib/libembed_mcp.a dist/embed_mcp/lib/
+
+	# Copy examples
+	@cp examples/*.c dist/embed_mcp/examples/ 2>/dev/null || true
+	@cp src/main.c dist/embed_mcp/examples/server_example.c
+
+	@echo "Distribution package created in dist/embed_mcp/"
+	@echo ""
+	@echo "Integration instructions:"
+	@echo "1. Copy dist/embed_mcp/ to your project"
+	@echo "2. Include: #include \"embed_mcp/include/embed_mcp/embed_mcp.h\""
+	@echo "3. Compile: gcc your_app.c embed_mcp/lib/libembed_mcp.a -I embed_mcp/include -o your_app"
+
+.PHONY: all clean distclean deps test debug protocol transport application tools utils info check dist

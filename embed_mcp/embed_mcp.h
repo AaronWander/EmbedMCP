@@ -5,12 +5,11 @@
 
 // cJSON dependency - users can either:
 // 1. Install cJSON system-wide: #include <cjson/cJSON.h>
-// 2. Use bundled cJSON: #include "cJSON.h"
-// 3. Use single-header version (embed_mcp_single.h)
+// 2. Use bundled cJSON: #include "cjson/cJSON.h"
 #ifdef EMBED_MCP_USE_SYSTEM_CJSON
     #include <cjson/cJSON.h>
 #else
-    #include "cJSON.h"
+    #include "cjson/cJSON.h"
 #endif
 
 #ifdef __cplusplus
