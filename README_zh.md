@@ -1,3 +1,8 @@
+<p align="center">
+  <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9"></a>
+  <a href="./README_zh.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
+</p>
+
 # EmbedMCP - 嵌入式MCP服务器库
 
 一个轻量级的C语言库，用于创建基于纯业务函数的MCP（模型上下文协议）服务器。
@@ -13,15 +18,15 @@
 
 ## 特性
 
-- **纯函数API** - 编写业务逻辑无需处理JSON
-- **通用参数访问** - 处理任意参数类型组合  
+- **简单工具注册** - 将C函数注册为MCP工具，支持灵活的参数类型
+- **自动类型转换** - JSON和C类型之间的无缝转换
 - **自动Schema生成** - 无需手动编写JSON Schema
 - **多种传输方式** - 支持STDIO和HTTP传输
 - **类型安全** - 编译时参数验证
 - **最小依赖** - 仅需要cJSON（已包含）
-- **极其简单** - 只需学习6个核心API函数
+- **极其简单** - 只需学习1个主要API函数
 - **易于集成** - 复制一个文件夹，包含一个头文件
-- **多客户端就绪** - 自动支持并发客户端
+- **单客户端优化** - 专为单客户端场景优化
 
 ## 快速集成摘要
 
@@ -30,7 +35,7 @@
 2. 在代码中包含 `#include "embed_mcp/embed_mcp.h"`  
 3. 一起编译所有 `.c` 文件
 
-**就这样！** 您现在拥有了一个支持多客户端的完整MCP服务器。
+**就这样！** 您现在拥有了一个完整的MCP服务器。
 
 ## 集成指南
 
@@ -67,16 +72,11 @@ your_project/
 在您的源代码中，包含主头文件：
 
 ```c
-#include "embed_mcp/embed_mcp.h"
+#include "embed_mcp.h"
 
 // 您的业务函数 - 无需处理JSON！
-void* add_numbers(mcp_param_accessor_t* params) {
-    double a = params->get_double(params, "a");
-    double b = params->get_double(params, "b");
-    
-    double* result = malloc(sizeof(double));
-    *result = a + b;
-    return result;
+double add_numbers(double a, double b) {
+    return a + b;
 }
 
 int main() {
@@ -90,23 +90,21 @@ int main() {
         .max_tools = 100,       // 最大工具数量
         .debug = 0              // 调试日志（0=关闭，1=开启）
     };
-    
+
     // 创建服务器
     embed_mcp_server_t *server = embed_mcp_create(&config);
-    
-    // 定义参数
-    mcp_param_desc_t params[] = {
-        MCP_PARAM_DOUBLE_DEF("a", "第一个数字", 1),
-        MCP_PARAM_DOUBLE_DEF("b", "第二个数字", 1)
-    };
-    
-    // 注册您的纯函数
-    embed_mcp_add_pure_function(server, "add", "两数相加",
-                                params, 2, MCP_RETURN_DOUBLE, add_numbers);
-    
+
+    // 注册您的函数，指定参数名称和类型
+    const char* param_names[] = {"a", "b"};
+    mcp_param_type_t param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
+
+    embed_mcp_add_tool(server, "add", "两数相加",
+                       param_names, param_types, 2,
+                       MCP_RETURN_DOUBLE, add_numbers);
+
     // 运行服务器
     embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
-    
+
     // 清理
     embed_mcp_destroy(server);
     return 0;
@@ -220,7 +218,7 @@ make
 
 **对于集成：** 复制整个 `embed_mcp/` 文件夹并一起编译所有 `.c` 文件。
 
-**多客户端支持：** 库通过应用层自动处理多个并发客户端，但您的工具函数保持简单，无需担心客户端管理。
+**单客户端设计：** 库目前专为单客户端场景优化。多客户端支持计划在未来版本中推出。
 
 ## 核心数据结构
 
@@ -322,24 +320,49 @@ int embed_mcp_run(embed_mcp_server_t *server, embed_mcp_transport_t transport);
 #### 工具注册
 
 ```c
-// 注册纯函数工具（处理所有MCP场景）
-int embed_mcp_add_pure_function(embed_mcp_server_t *server,
-                                const char *name,
-                                const char *description,
-                                mcp_param_desc_t *params,
-                                size_t param_count,
-                                mcp_return_type_t return_type,
-                                mcp_universal_func_t function_ptr);
+// 注册工具函数，支持灵活的参数规范
+int embed_mcp_add_tool(embed_mcp_server_t *server,
+                       const char *name,
+                       const char *description,
+                       const char *param_names[],
+                       mcp_param_type_t param_types[],
+                       size_t param_count,
+                       mcp_return_type_t return_type,
+                       void *function_ptr);
 ```
 
 **函数参数：**
 - `server` - 使用 `embed_mcp_create()` 创建的服务器实例
 - `name` - 唯一工具名称（在MCP协议中使用）
 - `description` - 人类可读的工具描述
-- `params` - 参数描述数组
-- `param_count` - 数组中的参数数量
+- `param_names` - 参数名称数组
+- `param_types` - 参数类型数组
+- `param_count` - 参数数量
 - `return_type` - 返回类型（`MCP_RETURN_DOUBLE`、`MCP_RETURN_INT`、`MCP_RETURN_STRING`、`MCP_RETURN_VOID`）
-- `function_ptr` - 指向您的纯业务函数的指针
+- `function_ptr` - 指向您的C函数的指针
+
+### 参数类型
+
+注册工具时使用这些参数类型：
+
+```c
+typedef enum {
+    MCP_PARAM_INT,        // 整数参数
+    MCP_PARAM_DOUBLE,     // 双精度浮点数参数
+    MCP_PARAM_STRING,     // 字符串参数
+    MCP_PARAM_CHAR        // 字符参数
+} mcp_param_type_t;
+```
+
+**使用示例：**
+```c
+// 对于函数: int add(int a, int b)
+const char* param_names[] = {"a", "b"};
+mcp_param_type_t param_types[] = {MCP_PARAM_INT, MCP_PARAM_INT};
+
+embed_mcp_add_tool(server, "add", "两个整数相加",
+                   param_names, param_types, 2, MCP_RETURN_INT, add_function);
+```
 
 #### 错误处理
 
@@ -402,14 +425,9 @@ typedef enum {
 ```c
 #include "embed_mcp/embed_mcp.h"
 
-// 纯业务函数 - 无需处理JSON！
-void* add_numbers(mcp_param_accessor_t* params) {
-    double a = params->get_double(params, "a");
-    double b = params->get_double(params, "b");
-
-    double* result = malloc(sizeof(double));
-    *result = a + b;
-    return result;
+// 简单的C函数 - 无需处理JSON！
+double add_numbers(double a, double b) {
+    return a + b;
 }
 
 int main() {
@@ -431,15 +449,13 @@ int main() {
         return -1;
     }
 
-    // 定义参数
-    mcp_param_desc_t params[] = {
-        MCP_PARAM_DOUBLE_DEF("a", "要相加的第一个数字", 1),
-        MCP_PARAM_DOUBLE_DEF("b", "要相加的第二个数字", 1)
-    };
+    // 注册工具，指定参数名称和类型
+    const char* param_names[] = {"a", "b"};
+    mcp_param_type_t param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
 
-    // 注册工具
-    if (embed_mcp_add_pure_function(server, "add", "两个数字相加",
-                                    params, 2, MCP_RETURN_DOUBLE, add_numbers) != 0) {
+    if (embed_mcp_add_tool(server, "add", "两个数字相加",
+                           param_names, param_types, 2,
+                           MCP_RETURN_DOUBLE, add_numbers) != 0) {
         printf("错误：%s\n", embed_mcp_get_error());
         embed_mcp_destroy(server);
         return -1;
@@ -458,23 +474,20 @@ int main() {
 ### 2. 字符串处理工具
 
 ```c
-void* process_text(mcp_param_accessor_t* params) {
-    const char* input = params->get_string(params, "text");
-    const char* operation = params->get_string(params, "operation");
-
-    size_t len = strlen(input);
+char* process_text(const char* text, const char* operation) {
+    size_t len = strlen(text);
     char* result = malloc(len + 1);
 
     if (strcmp(operation, "upper") == 0) {
         for (size_t i = 0; i < len; i++) {
-            result[i] = toupper(input[i]);
+            result[i] = toupper(text[i]);
         }
     } else if (strcmp(operation, "lower") == 0) {
         for (size_t i = 0; i < len; i++) {
-            result[i] = tolower(input[i]);
+            result[i] = tolower(text[i]);
         }
     } else {
-        strcpy(result, input);  // 无变化
+        strcpy(result, text);  // 无变化
     }
     result[len] = '\0';
 
@@ -482,37 +495,36 @@ void* process_text(mcp_param_accessor_t* params) {
 }
 
 // 注册工具
-mcp_param_desc_t text_params[] = {
-    MCP_PARAM_STRING_DEF("text", "要处理的输入文本", 1),
-    MCP_PARAM_STRING_DEF("operation", "操作：'upper' 或 'lower'", 1)
-};
-embed_mcp_add_pure_function(server, "process_text", "使用各种操作处理文本",
-                            text_params, 2, MCP_RETURN_STRING, process_text);
+const char* text_param_names[] = {"text", "operation"};
+mcp_param_type_t text_param_types[] = {MCP_PARAM_STRING, MCP_PARAM_STRING};
+
+embed_mcp_add_tool(server, "process_text", "使用各种操作处理文本",
+                   text_param_names, text_param_types, 2,
+                   MCP_RETURN_STRING, process_text);
 ```
 
-### 3. 数组处理工具
+### 3. 多参数工具
 
 ```c
-void* sum_array(mcp_param_accessor_t* params) {
-    size_t count;
-    double* numbers = params->get_double_array(params, "numbers", &count);
-
-    double total = 0.0;
-    for (size_t i = 0; i < count; i++) {
-        total += numbers[i];
+int calculate_score(int base_points, char grade, double multiplier) {
+    int bonus = 0;
+    switch (grade) {
+        case 'A': bonus = 100; break;
+        case 'B': bonus = 80; break;
+        case 'C': bonus = 60; break;
+        default: bonus = 0; break;
     }
 
-    double* result = malloc(sizeof(double));
-    *result = total;
-    return result;
+    return (int)((base_points + bonus) * multiplier);
 }
 
 // 注册工具
-mcp_param_desc_t array_params[] = {
-    MCP_PARAM_ARRAY_DOUBLE_DEF("numbers", "要求和的数字数组", "一个数字", 1)
-};
-embed_mcp_add_pure_function(server, "sum_array", "计算数字数组的和",
-                            array_params, 1, MCP_RETURN_DOUBLE, sum_array);
+const char* score_param_names[] = {"base_points", "grade", "multiplier"};
+mcp_param_type_t score_param_types[] = {MCP_PARAM_INT, MCP_PARAM_CHAR, MCP_PARAM_DOUBLE};
+
+embed_mcp_add_tool(server, "calculate_score", "计算带等级奖励的分数",
+                   score_param_names, score_param_types, 3,
+                   MCP_RETURN_INT, calculate_score);
 ```
 
 ### 4. 复杂参数（直接JSON访问）
@@ -566,9 +578,9 @@ make debug
 ```
 
 示例服务器包含三个演示工具：
-- `add(a, b)` - 两数相加
-- `sum_array(numbers[])` - 数组求和
+- `add(a, b)` - 两个数字相加
 - `weather(city)` - 获取天气信息（支持济南）
+- `calculate_score(base_points, grade, multiplier)` - 计算带等级奖励的分数
 
 ### 使用MCP Inspector测试
 
@@ -599,7 +611,17 @@ curl -X POST http://localhost:8080/mcp \
 ## 重要注意事项
 
 ### 多客户端支持
-EmbedMCP自动支持多个并发客户端。每个客户端都有自己的会话，工具调用被正确隔离。您无需在工具函数中担心客户端管理。
+**当前状态：** EmbedMCP目前支持单客户端场景。多客户端支持计划在未来版本中推出。
+
+**当前限制：**
+- 专为单客户端或顺序客户端访问设计
+- 并发客户端可能会相互干扰
+- 客户端之间没有会话隔离
+
+**解决方案：**
+- 使用反向代理/负载均衡器处理多个客户端
+- 运行多个EmbedMCP服务器实例
+- 确保一次只有一个客户端连接
 
 ### 线程安全
 库安全地处理并发请求。如果您的工具函数访问共享资源，应该是无状态的或使用适当的同步。
@@ -613,7 +635,7 @@ EmbedMCP自动支持多个并发客户端。每个客户端都有自己的会话
 始终检查返回值并使用 `embed_mcp_get_error()` 获取详细错误信息：
 
 ```c
-if (embed_mcp_add_pure_function(...) != 0) {
+if (embed_mcp_add_tool(...) != 0) {
     printf("错误：%s\n", embed_mcp_get_error());
     // 适当处理错误
 }
@@ -630,10 +652,11 @@ if (embed_mcp_add_pure_function(...) != 0) {
 
 ## 路线图
 
-- ✅ **v1.0** - 工具系统与纯函数API
-- 🚧 **v1.1** - 资源系统（文件访问、数据源）
-- 🚧 **v1.2** - 提示系统（提示模板、补全）
-- 🚧 **v1.3** - 采样系统（LLM采样控制）
+- ✅ **v1.0** - 工具系统与纯函数API（单客户端）
+- 🚧 **v1.1** - 多客户端支持与会话管理
+- 🚧 **v1.2** - 资源系统（文件访问、数据源）
+- 🚧 **v1.3** - 提示系统（提示模板、补全）
+- 🚧 **v1.4** - 采样系统（LLM采样控制）
 - 🚧 **v2.0** - 高级功能（日志、指标、认证）
 
 ## 贡献

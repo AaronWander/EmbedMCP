@@ -8,38 +8,75 @@
 // Pure Business Function Examples - No JSON handling required!
 // =============================================================================
 
-// Example 1: Add two numbers - demonstrates basic math operations
-double add_impl(double a, double b) {
+// =============================================================================
+// Pure Business Functions - No Wrappers Needed!
+// =============================================================================
+
+// Example 1: Simple math operation - pure business logic
+double add_numbers(double a, double b) {
+    printf("[DEBUG] Adding %.2f + %.2f\n", a, b);
     return a + b;
 }
 
-// Example 2: Sum array of numbers - demonstrates array parameter handling
-double sum_array_impl(double* numbers, size_t count) {
+// Example 2: Array processing - pure business logic
+double sum_array(double* numbers, size_t count) {
+    printf("[DEBUG] Summing array of %zu numbers\n", count);
+
+    if (!numbers || count == 0) {
+        return 0.0;
+    }
+
     double total = 0.0;
     for (size_t i = 0; i < count; i++) {
         total += numbers[i];
+        printf("[DEBUG]   numbers[%zu] = %.2f, running total = %.2f\n", i, numbers[i], total);
     }
+
     return total;
 }
 
-// Example 3: Weather query - demonstrates string parameter and return value handling
-char* weather_impl(const char* city) {
+// Example 3: String processing - pure business logic
+char* get_weather(const char* city) {
+    printf("[DEBUG] Getting weather for city: %s\n", city);
+
     if (strcmp(city, "济南") == 0 || strcmp(city, "jinan") == 0 ||
         strcmp(city, "Jinan") == 0 || strcmp(city, "JINAN") == 0) {
         return strdup(
             "🌤️ Jinan Weather Forecast\n\n"
-            "Tonight:\n"
-            "Temperature: 59°F\n"
-            "Wind: 2 to 10 mph S\n"
-            "Forecast: Clear, with a low around 59. South wind 2 to 10 mph, with gusts as high as 18 mph.\n\n"
-            "…………………………\n\n"
-            "Thursday Night:\n"
-            "Temperature: 57°F\n"
-            "Wind: 5 to 10 mph SSW\n"
-            "Forecast: Clear, with a low around 57. South southwest wind 5 to 10 mph, with gusts as high as 20 mph."
+            "Current: 22°C, Partly Cloudy\n"
+            "Humidity: 65%\n"
+            "Wind: 12 km/h NE\n"
+            "UV Index: 6 (High)\n\n"
+            "Tomorrow: 25°C, Sunny\n"
+            "Weekend: Light rain expected\n\n"
+            "Air Quality: Good (AQI: 45)\n"
+            "Sunrise: 06:12 | Sunset: 19:45"
         );
     }
-    return strdup("Sorry, currently only supports weather queries for Jinan (济南).");
+
+    return strdup("Weather information is currently only available for Jinan (济南). Please try 'jinan', 'Jinan', or '济南'.");
+}
+
+// Example 4: Multi-parameter function with mixed types
+int calculate_score(int base_points, char grade, double multiplier) {
+    printf("[DEBUG] Calculating score: base=%d, grade='%c', multiplier=%.2f\n",
+           base_points, grade, multiplier);
+
+    double score = base_points * multiplier;
+
+    // Apply grade bonus
+    switch (grade) {
+        case 'A': case 'a': score *= 1.2; break;
+        case 'B': case 'b': score *= 1.1; break;
+        case 'C': case 'c': score *= 1.0; break;
+        case 'D': case 'd': score *= 0.9; break;
+        default: score *= 0.8; break;
+    }
+
+    int final_score = (int)score;
+    printf("[DEBUG] Final score: %d\n", final_score);
+
+    return final_score;
 }
 
 
@@ -126,27 +163,48 @@ int main(int argc, char *argv[]) {
 
     printf("Registering example tools...\n");
 
-    // Example 1: Add numbers - demonstrates basic math operations (double, double) -> double
-    mcp_param_desc_t add_params[] = {
-        MCP_PARAM_DOUBLE_DEF("a", "First number to add", 1),
-        MCP_PARAM_DOUBLE_DEF("b", "Second number to add", 1)
-    };
-    embed_mcp_add_pure_function(server, "add", "Add two numbers together",
-                                add_params, 2, MCP_RETURN_DOUBLE, add_impl);
+    printf("Registering business functions using custom function API...\n");
 
-    // Example 2: Array sum - demonstrates array parameter handling (double[], size_t) -> double
-    mcp_param_desc_t sum_params[] = {
-        MCP_PARAM_ARRAY_DOUBLE_DEF("numbers", "Array of numbers to sum", "A number to include in the sum", 1)
-    };
-    embed_mcp_add_pure_function(server, "sum_array", "Calculate the sum of an array of numbers",
-                                sum_params, 1, MCP_RETURN_DOUBLE, sum_array_impl);
+    // Example 1: Simple math function - double add_numbers(double a, double b)
+    const char* add_param_names[] = {"a", "b"};
+    mcp_param_type_t add_param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
 
-    // Example 3: Weather query - demonstrates string parameter and return value (string) -> string
-    mcp_param_desc_t weather_params[] = {
-        MCP_PARAM_STRING_DEF("city", "Name of the city to get weather for (currently supports: Jinan/济南)", 1)
-    };
-    embed_mcp_add_pure_function(server, "weather", "Get weather information for a city",
-                                weather_params, 1, MCP_RETURN_STRING, weather_impl);
+    if (embed_mcp_add_tool(server, "add", "Add two numbers together",
+                                  add_param_names, add_param_types, 2,
+                                  MCP_RETURN_DOUBLE, add_numbers) != 0) {
+        printf("Failed to register 'add' function: %s\n", embed_mcp_get_error());
+    } else {
+        printf("✅ Registered add(double, double) -> double\n");
+    }
+
+    // Example 2: Array processing function - double sum_array(double*, size_t)
+    // Note: This requires special handling since it's not a simple parameter combination
+    // For now, we'll skip this and implement it later with array support
+    printf("⚠️  Array functions need special implementation - skipping sum_array for now\n");
+
+    // Example 3: String function - char* get_weather(const char*)
+    const char* weather_param_names[] = {"city"};
+    mcp_param_type_t weather_param_types[] = {MCP_PARAM_STRING};
+
+    if (embed_mcp_add_tool(server, "weather", "Get weather information for a city",
+                                  weather_param_names, weather_param_types, 1,
+                                  MCP_RETURN_STRING, get_weather) != 0) {
+        printf("Failed to register 'weather' function: %s\n", embed_mcp_get_error());
+    } else {
+        printf("✅ Registered get_weather(const char*) -> char*\n");
+    }
+
+    // Example 4: Multi-parameter function - int calculate_score(int, char, double)
+    const char* score_param_names[] = {"base_points", "grade", "multiplier"};
+    mcp_param_type_t score_param_types[] = {MCP_PARAM_INT, MCP_PARAM_CHAR, MCP_PARAM_DOUBLE};
+
+    if (embed_mcp_add_tool(server, "calculate_score", "Calculate score with grade bonus",
+                                  score_param_names, score_param_types, 3,
+                                  MCP_RETURN_INT, calculate_score) != 0) {
+        printf("Failed to register 'calculate_score' function: %s\n", embed_mcp_get_error());
+    } else {
+        printf("✅ Registered calculate_score(int, char, double) -> int\n");
+    }
 
 
     

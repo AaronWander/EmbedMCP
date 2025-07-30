@@ -645,6 +645,13 @@ static cJSON *universal_pure_wrapper(const cJSON *args, void *user_data) {
     return NULL;
 }
 
+/*
+ * COMMENTED OUT: Pure Function API Implementation
+ *
+ * This implementation is kept for reference but commented out in favor of
+ * the more flexible embed_mcp_add_tool API.
+ */
+/*
 int embed_mcp_add_pure_function(embed_mcp_server_t *server,
                                 const char *name,
                                 const char *description,
@@ -732,6 +739,7 @@ int embed_mcp_add_pure_function(embed_mcp_server_t *server,
 
     return 0;
 }
+*/
 
 
 

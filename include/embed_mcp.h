@@ -2,6 +2,7 @@
 #define EMBED_MCP_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 // cJSON dependency - users can either:
 // 1. Install cJSON system-wide: #include <cjson/cJSON.h>
@@ -24,6 +25,15 @@ typedef struct embed_mcp_server embed_mcp_server_t;
 // Parameters: args (JSON object with tool arguments)
 // Returns: JSON object with tool result (caller must free)
 typedef cJSON* (*embed_mcp_tool_handler_t)(const cJSON *args);
+
+// Parameter types
+typedef enum {
+    MCP_PARAM_INT,
+    MCP_PARAM_DOUBLE,
+    MCP_PARAM_STRING,
+    MCP_PARAM_BOOL,
+    MCP_PARAM_CHAR        // Single character (transmitted as string)
+} mcp_param_type_t;
 
 // Return types for pure functions
 typedef enum {
@@ -79,13 +89,17 @@ struct mcp_param_accessor {
 // Universal function signature - all pure functions use this
 typedef void* (*mcp_universal_func_t)(mcp_param_accessor_t* params);
 
-// Parameter types
+// Function signature types for simple function registration
 typedef enum {
-    MCP_PARAM_INT,
-    MCP_PARAM_DOUBLE,
-    MCP_PARAM_STRING,
-    MCP_PARAM_BOOL
-} mcp_param_type_t;
+    MCP_FUNC_STRING_STRING,        // char* func(const char*)
+    MCP_FUNC_INT_INT_INT,          // int func(int, int)
+    MCP_FUNC_DOUBLE_DOUBLE_DOUBLE, // double func(double, double)
+    MCP_FUNC_DOUBLE_ARRAY_SIZE,    // double func(double*, size_t)
+    MCP_FUNC_VOID_STRING,          // void func(const char*)
+    MCP_FUNC_STRING_VOID           // char* func(void)
+} mcp_func_signature_t;
+
+
 
 /**
  * Parameter categories - defines how parameters are structured
@@ -177,7 +191,15 @@ void embed_mcp_destroy(embed_mcp_server_t *server);
 // Unified Pure Function API - No JSON handling required
 // =============================================================================
 
-/**
+/*
+ * COMMENTED OUT: Pure Function API
+ *
+ * This API is kept for reference but commented out in favor of the more
+ * flexible embed_mcp_add_custom_func API which provides better control
+ * over parameter types and names.
+ */
+
+/*
  * Add a pure function tool with universal parameter handling
  * @param server Server instance
  * @param name Tool name
@@ -201,6 +223,7 @@ void embed_mcp_destroy(embed_mcp_server_t *server);
  * }
  * ```
  */
+/*
 int embed_mcp_add_pure_function(embed_mcp_server_t *server,
                                 const char *name,
                                 const char *description,
@@ -208,6 +231,7 @@ int embed_mcp_add_pure_function(embed_mcp_server_t *server,
                                 size_t param_count,
                                 mcp_return_type_t return_type,
                                 mcp_universal_func_t function_ptr);
+*/
 
 /*
  * RESERVED FOR FUTURE USE: Complex parameter structures
@@ -285,6 +309,81 @@ int embed_mcp_quick_start(const char *name, const char *version,
  */
 const char *embed_mcp_get_error(void);
 
+/*
+ * COMMENTED OUT: Simple Function API
+ *
+ * This API is kept for reference but commented out in favor of the more
+ * flexible embed_mcp_add_tool API which provides better control over
+ * parameter types and names.
+ */
+
+/*
+ * Register a simple function with explicit signature type
+ *
+ * This allows users to register normal C functions without complex wrappers:
+ *
+ * Example:
+ * ```c
+ * char* weather(const char* city) { return strdup("Sunny"); }
+ * int add(int a, int b) { return a + b; }
+ *
+ * embed_mcp_add_simple_func(server, "weather", "Get weather",
+ *                           MCP_FUNC_STRING_STRING, weather);
+ * embed_mcp_add_simple_func(server, "add", "Add numbers",
+ *                           MCP_FUNC_INT_INT_INT, add);
+ * ```
+ *
+ * @param server Server instance
+ * @param name Tool name
+ * @param description Tool description
+ * @param signature Function signature type
+ * @param function_ptr Pointer to user's simple function
+ * @return 0 on success, -1 on error
+ */
+/*
+int embed_mcp_add_simple_func(embed_mcp_server_t *server,
+                              const char *name,
+                              const char *description,
+                              mcp_func_signature_t signature,
+                              void *function_ptr);
+*/
+
+/**
+ * Register a tool function with flexible parameter specification
+ *
+ * This is the main API for registering tools. It allows users to register
+ * functions with arbitrary parameter combinations:
+ *
+ * Example:
+ * ```c
+ * int my_func(char c, int a, int b, char d) { return c + a + b + d; }
+ *
+ * const char* param_names[] = {"c", "a", "b", "d"};
+ * mcp_param_type_t param_types[] = {MCP_PARAM_CHAR, MCP_PARAM_INT, MCP_PARAM_INT, MCP_PARAM_CHAR};
+ *
+ * embed_mcp_add_tool(server, "my_func", "My custom function",
+ *                    param_names, param_types, 4, MCP_RETURN_INT, my_func);
+ * ```
+ *
+ * @param server Server instance
+ * @param name Tool name
+ * @param description Tool description
+ * @param param_names Array of parameter names
+ * @param param_types Array of parameter types
+ * @param param_count Number of parameters
+ * @param return_type Return value type
+ * @param function_ptr Pointer to user's function
+ * @return 0 on success, -1 on error
+ */
+int embed_mcp_add_tool(embed_mcp_server_t *server,
+                       const char *name,
+                       const char *description,
+                       const char *param_names[],
+                       mcp_param_type_t param_types[],
+                       size_t param_count,
+                       mcp_return_type_t return_type,
+                       void *function_ptr);
+
 // =============================================================================
 // Convenience Macros for Parameter Definitions
 // =============================================================================
@@ -301,6 +400,9 @@ const char *embed_mcp_get_error(void);
 
 #define MCP_PARAM_BOOL_DEF(name, desc, req) \
     {name, desc, MCP_PARAM_SINGLE, req, .single_type = MCP_PARAM_BOOL}
+
+#define MCP_PARAM_CHAR_DEF(name, desc, req) \
+    {name, desc, MCP_PARAM_SINGLE, req, .single_type = MCP_PARAM_CHAR}
 
 // Array parameter macros
 #define MCP_PARAM_ARRAY_INT_DEF(name, desc, elem_desc, req) \

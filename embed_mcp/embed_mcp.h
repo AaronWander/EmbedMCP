@@ -2,6 +2,7 @@
 #define EMBED_MCP_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 // cJSON dependency - users can either:
 // 1. Install cJSON system-wide: #include <cjson/cJSON.h>
@@ -23,6 +24,14 @@ typedef struct embed_mcp_server embed_mcp_server_t;
 // Parameters: args (JSON object with tool arguments)
 // Returns: JSON object with tool result (caller must free)
 typedef cJSON* (*embed_mcp_tool_handler_t)(const cJSON *args);
+
+// Parameter types
+typedef enum {
+    MCP_PARAM_INT,
+    MCP_PARAM_DOUBLE,
+    MCP_PARAM_STRING,
+    MCP_PARAM_BOOL
+} mcp_param_type_t;
 
 // Return types for pure functions
 typedef enum {
@@ -78,13 +87,7 @@ struct mcp_param_accessor {
 // Universal function signature - all pure functions use this
 typedef void* (*mcp_universal_func_t)(mcp_param_accessor_t* params);
 
-// Parameter types
-typedef enum {
-    MCP_PARAM_INT,
-    MCP_PARAM_DOUBLE,
-    MCP_PARAM_STRING,
-    MCP_PARAM_BOOL
-} mcp_param_type_t;
+
 
 /**
  * Parameter categories - defines how parameters are structured
@@ -176,7 +179,15 @@ void embed_mcp_destroy(embed_mcp_server_t *server);
 // Unified Pure Function API - No JSON handling required
 // =============================================================================
 
-/**
+/*
+ * COMMENTED OUT: Pure Function API
+ *
+ * This API is kept for reference but commented out in favor of the more
+ * flexible embed_mcp_add_tool API which provides better control
+ * over parameter types and names.
+ */
+
+/*
  * Add a pure function tool with universal parameter handling
  * @param server Server instance
  * @param name Tool name
@@ -200,6 +211,7 @@ void embed_mcp_destroy(embed_mcp_server_t *server);
  * }
  * ```
  */
+/*
 int embed_mcp_add_pure_function(embed_mcp_server_t *server,
                                 const char *name,
                                 const char *description,
@@ -207,6 +219,7 @@ int embed_mcp_add_pure_function(embed_mcp_server_t *server,
                                 size_t param_count,
                                 mcp_return_type_t return_type,
                                 mcp_universal_func_t function_ptr);
+*/
 
 /*
  * RESERVED FOR FUTURE USE: Complex parameter structures

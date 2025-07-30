@@ -1,3 +1,8 @@
+<p align="center">
+  <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9"></a>
+  <a href="./README_zh.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
+</p>
+
 # EmbedMCP - Embedded MCP Server Library
 
 A lightweight C library for creating MCP (Model Context Protocol) servers with pure business functions.
@@ -13,15 +18,15 @@ Currently, EmbedMCP focuses on the **Tool** part of MCP protocol, allowing you t
 
 ## Features
 
-- **Pure Function API** - Write business logic without JSON handling
-- **Universal Parameter Access** - Handle any parameter type combination
+- **Simple Tool Registration** - Register C functions as MCP tools with flexible parameter types
+- **Automatic Type Conversion** - Seamless conversion between JSON and C types
 - **Automatic Schema Generation** - No manual JSON Schema required
 - **Multiple Transports** - STDIO and HTTP support
 - **Type Safety** - Compile-time parameter validation
 - **Minimal Dependencies** - Only requires cJSON (included)
-- **Extremely Simple** - Only 6 core API functions to learn
+- **Extremely Simple** - Only 1 main API function to learn
 - **Easy Integration** - Copy one folder, include one header file
-- **Multi-Client Ready** - Automatic concurrent client support
+- **Single-Client Optimized** - Perfect for single-client scenarios
 
 ## Quick Integration Summary
 
@@ -67,16 +72,11 @@ your_project/
 In your source code, include the main header:
 
 ```c
-#include "embed_mcp/embed_mcp.h"
+#include "embed_mcp.h"
 
 // Your business function - no JSON handling required!
-void* add_numbers(mcp_param_accessor_t* params) {
-    double a = params->get_double(params, "a");
-    double b = params->get_double(params, "b");
-
-    double* result = malloc(sizeof(double));
-    *result = a + b;
-    return result;
+double add_numbers(double a, double b) {
+    return a + b;
 }
 
 int main() {
@@ -94,15 +94,13 @@ int main() {
     // Create server
     embed_mcp_server_t *server = embed_mcp_create(&config);
 
-    // Define parameters
-    mcp_param_desc_t params[] = {
-        MCP_PARAM_DOUBLE_DEF("a", "First number", 1),
-        MCP_PARAM_DOUBLE_DEF("b", "Second number", 1)
-    };
+    // Register your function with parameter names and types
+    const char* param_names[] = {"a", "b"};
+    mcp_param_type_t param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
 
-    // Register your pure function
-    embed_mcp_add_pure_function(server, "add", "Add two numbers",
-                                params, 2, MCP_RETURN_DOUBLE, add_numbers);
+    embed_mcp_add_tool(server, "add", "Add two numbers",
+                       param_names, param_types, 2,
+                       MCP_RETURN_DOUBLE, add_numbers);
 
     // Run server
     embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
@@ -220,7 +218,7 @@ The `embed_mcp/` folder contains all the files needed to integrate EmbedMCP into
 
 **For Integration:** Copy the entire `embed_mcp/` folder and compile all `.c` files together.
 
-**Multi-Client Support:** The library automatically handles multiple concurrent clients through the application layer, but your tool functions remain simple and don't need to worry about client management.
+**Single-Client Design:** The library is currently optimized for single-client scenarios. Multi-client support is planned for future releases.
 
 ## Core Data Structures
 
@@ -322,24 +320,26 @@ int embed_mcp_run(embed_mcp_server_t *server, embed_mcp_transport_t transport);
 #### Tool Registration
 
 ```c
-// Register pure function tool (handles all MCP scenarios)
-int embed_mcp_add_pure_function(embed_mcp_server_t *server,
-                                const char *name,
-                                const char *description,
-                                mcp_param_desc_t *params,
-                                size_t param_count,
-                                mcp_return_type_t return_type,
-                                mcp_universal_func_t function_ptr);
+// Register tool function with flexible parameter specification
+int embed_mcp_add_tool(embed_mcp_server_t *server,
+                       const char *name,
+                       const char *description,
+                       const char *param_names[],
+                       mcp_param_type_t param_types[],
+                       size_t param_count,
+                       mcp_return_type_t return_type,
+                       void *function_ptr);
 ```
 
 **Function Parameters:**
 - `server` - Server instance created with `embed_mcp_create()`
 - `name` - Unique tool name (used in MCP protocol)
 - `description` - Human-readable tool description
-- `params` - Array of parameter descriptions
-- `param_count` - Number of parameters in the array
+- `param_names` - Array of parameter names
+- `param_types` - Array of parameter types
+- `param_count` - Number of parameters
 - `return_type` - Return type (`MCP_RETURN_DOUBLE`, `MCP_RETURN_INT`, `MCP_RETURN_STRING`, `MCP_RETURN_VOID`)
-- `function_ptr` - Pointer to your pure business function
+- `function_ptr` - Pointer to your C function
 
 #### Error Handling
 
@@ -348,32 +348,28 @@ int embed_mcp_add_pure_function(embed_mcp_server_t *server,
 const char *embed_mcp_get_error(void);
 ```
 
-### Parameter Definition Macros
+### Parameter Types
 
-These macros simplify parameter definition:
+Use these parameter types when registering tools:
 
 ```c
-// Single value parameters
-MCP_PARAM_DOUBLE_DEF(name, description, required)   // Double parameter
-MCP_PARAM_INT_DEF(name, description, required)      // Integer parameter
-MCP_PARAM_STRING_DEF(name, description, required)   // String parameter
-MCP_PARAM_BOOL_DEF(name, description, required)     // Boolean parameter
-
-// Array parameters
-MCP_PARAM_ARRAY_DOUBLE_DEF(name, desc, elem_desc, required)  // Array of doubles
-MCP_PARAM_ARRAY_STRING_DEF(name, desc, elem_desc, required)  // Array of strings
-MCP_PARAM_ARRAY_INT_DEF(name, desc, elem_desc, required)     // Array of integers
-
-// Complex object parameters
-MCP_PARAM_OBJECT_DEF(name, description, json_schema, required)  // Custom JSON object
+typedef enum {
+    MCP_PARAM_INT,        // Integer parameter
+    MCP_PARAM_DOUBLE,     // Double parameter
+    MCP_PARAM_STRING,     // String parameter
+    MCP_PARAM_CHAR        // Character parameter
+} mcp_param_type_t;
 ```
 
-**Parameters:**
-- `name` - Parameter name (string literal)
-- `description` - Human-readable description (string literal)
-- `elem_desc` - Description of array elements (string literal)
-- `json_schema` - JSON Schema string for object validation
-- `required` - 1 if required, 0 if optional
+**Example Usage:**
+```c
+// For function: int add(int a, int b)
+const char* param_names[] = {"a", "b"};
+mcp_param_type_t param_types[] = {MCP_PARAM_INT, MCP_PARAM_INT};
+
+embed_mcp_add_tool(server, "add", "Add two integers",
+                   param_names, param_types, 2, MCP_RETURN_INT, add_function);
+```
 
 ### Return Types
 
@@ -402,14 +398,9 @@ typedef enum {
 ```c
 #include "embed_mcp.h"
 
-// Pure business function - no JSON handling required!
-void* add_numbers(mcp_param_accessor_t* params) {
-    double a = params->get_double(params, "a");
-    double b = params->get_double(params, "b");
-
-    double* result = malloc(sizeof(double));
-    *result = a + b;
-    return result;
+// Simple C function - no JSON handling required!
+double add_numbers(double a, double b) {
+    return a + b;
 }
 
 int main() {
@@ -431,15 +422,13 @@ int main() {
         return -1;
     }
 
-    // Define parameters
-    mcp_param_desc_t params[] = {
-        MCP_PARAM_DOUBLE_DEF("a", "First number to add", 1),
-        MCP_PARAM_DOUBLE_DEF("b", "Second number to add", 1)
-    };
+    // Register tool with parameter names and types
+    const char* param_names[] = {"a", "b"};
+    mcp_param_type_t param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
 
-    // Register tool
-    if (embed_mcp_add_pure_function(server, "add", "Add two numbers together",
-                                    params, 2, MCP_RETURN_DOUBLE, add_numbers) != 0) {
+    if (embed_mcp_add_tool(server, "add", "Add two numbers together",
+                           param_names, param_types, 2,
+                           MCP_RETURN_DOUBLE, add_numbers) != 0) {
         printf("Error: %s\n", embed_mcp_get_error());
         embed_mcp_destroy(server);
         return -1;
@@ -458,23 +447,20 @@ int main() {
 ### 2. String Processing Tool
 
 ```c
-void* process_text(mcp_param_accessor_t* params) {
-    const char* input = params->get_string(params, "text");
-    const char* operation = params->get_string(params, "operation");
-
-    size_t len = strlen(input);
+char* process_text(const char* text, const char* operation) {
+    size_t len = strlen(text);
     char* result = malloc(len + 1);
 
     if (strcmp(operation, "upper") == 0) {
         for (size_t i = 0; i < len; i++) {
-            result[i] = toupper(input[i]);
+            result[i] = toupper(text[i]);
         }
     } else if (strcmp(operation, "lower") == 0) {
         for (size_t i = 0; i < len; i++) {
-            result[i] = tolower(input[i]);
+            result[i] = tolower(text[i]);
         }
     } else {
-        strcpy(result, input);  // No change
+        strcpy(result, text);  // No change
     }
     result[len] = '\0';
 
@@ -482,64 +468,52 @@ void* process_text(mcp_param_accessor_t* params) {
 }
 
 // Register the tool
-mcp_param_desc_t text_params[] = {
-    MCP_PARAM_STRING_DEF("text", "Input text to process", 1),
-    MCP_PARAM_STRING_DEF("operation", "Operation: 'upper' or 'lower'", 1)
-};
-embed_mcp_add_pure_function(server, "process_text", "Process text with various operations",
-                            text_params, 2, MCP_RETURN_STRING, process_text);
+const char* text_param_names[] = {"text", "operation"};
+mcp_param_type_t text_param_types[] = {MCP_PARAM_STRING, MCP_PARAM_STRING};
+
+embed_mcp_add_tool(server, "process_text", "Process text with various operations",
+                   text_param_names, text_param_types, 2,
+                   MCP_RETURN_STRING, process_text);
 ```
 
-### 3. Array Processing Tool
+### 3. Multi-Parameter Tool
 
 ```c
-void* sum_array(mcp_param_accessor_t* params) {
-    size_t count;
-    double* numbers = params->get_double_array(params, "numbers", &count);
-
-    double total = 0.0;
-    for (size_t i = 0; i < count; i++) {
-        total += numbers[i];
+int calculate_score(int base_points, char grade, double multiplier) {
+    int bonus = 0;
+    switch (grade) {
+        case 'A': bonus = 100; break;
+        case 'B': bonus = 80; break;
+        case 'C': bonus = 60; break;
+        default: bonus = 0; break;
     }
 
-    double* result = malloc(sizeof(double));
-    *result = total;
-    return result;
+    return (int)((base_points + bonus) * multiplier);
 }
 
 // Register the tool
-mcp_param_desc_t array_params[] = {
-    MCP_PARAM_ARRAY_DOUBLE_DEF("numbers", "Array of numbers to sum", "A number", 1)
-};
-embed_mcp_add_pure_function(server, "sum_array", "Calculate sum of number array",
-                            array_params, 1, MCP_RETURN_DOUBLE, sum_array);
+const char* score_param_names[] = {"base_points", "grade", "multiplier"};
+mcp_param_type_t score_param_types[] = {MCP_PARAM_INT, MCP_PARAM_CHAR, MCP_PARAM_DOUBLE};
+
+embed_mcp_add_tool(server, "calculate_score", "Calculate score with grade bonus",
+                   score_param_names, score_param_types, 3,
+                   MCP_RETURN_INT, calculate_score);
 ```
 
-### 4. Complex Parameters (Direct JSON Access)
+### 4. Running the Server
 
-```c
-void* complex_handler(mcp_param_accessor_t* params) {
-    // Use type-safe accessors for simple parameters
-    const char* operation = params->get_string(params, "operation");
+```bash
+# Build the server
+make
 
-    // Use direct JSON access for complex nested structures
-    const cJSON* config = params->get_json(params, "config");
-    if (config) {
-        cJSON* database = cJSON_GetObjectItem(config, "database");
-        if (database) {
-            cJSON* host = cJSON_GetObjectItem(database, "host");
-            cJSON* port = cJSON_GetObjectItem(database, "port");
+# Run with HTTP transport
+./bin/mcp_server -t http -p 8080
 
-            printf("Connecting to %s:%d\n",
-                   cJSON_GetStringValue(host),
-                   cJSON_GetNumberValue(port));
-        }
-    }
+# Run with STDIO transport (for MCP clients)
+./bin/mcp_server -t stdio
 
-    char* result = malloc(256);
-    snprintf(result, 256, "Processed %s operation", operation);
-    return result;
-}
+# Run with debug logging
+./bin/mcp_server -t http -p 8080 -d
 ```
 
 ## Building and Running
@@ -567,8 +541,8 @@ make debug
 
 The example server includes three demo tools:
 - `add(a, b)` - Add two numbers
-- `sum_array(numbers[])` - Sum an array of numbers
 - `weather(city)` - Get weather info (supports Jinan/济南)
+- `calculate_score(base_points, grade, multiplier)` - Calculate score with grade bonus
 
 ### Test with MCP Inspector
 
@@ -601,7 +575,17 @@ curl -X POST http://localhost:8080/mcp \
 ## Important Notes
 
 ### Multi-Client Support
-EmbedMCP automatically supports multiple concurrent clients. Each client gets its own session, and tool calls are properly isolated. You don't need to worry about client management in your tool functions.
+**Current Status:** EmbedMCP currently supports single-client scenarios. Multi-client support is planned for future releases.
+
+**Current Limitations:**
+- Designed for single-client or sequential client access
+- Concurrent clients may interfere with each other
+- No session isolation between clients
+
+**Workarounds:**
+- Use a reverse proxy/load balancer for multiple clients
+- Run multiple EmbedMCP server instances
+- Ensure only one client connects at a time
 
 ### Thread Safety
 The library handles concurrent requests safely. Your tool functions should be stateless or use proper synchronization if they access shared resources.
@@ -650,10 +634,11 @@ if (embed_mcp_add_pure_function(...) != 0) {
 
 ## Roadmap
 
-- ✅ **v1.0** - Tool system with pure function API
-- 🚧 **v1.1** - Resource system (file access, data sources)
-- 🚧 **v1.2** - Prompt system (prompt templates, completion)
-- 🚧 **v1.3** - Sampling system (LLM sampling control)
+- ✅ **v1.0** - Tool system with pure function API (single-client)
+- 🚧 **v1.1** - Multi-client support with session management
+- 🚧 **v1.2** - Resource system (file access, data sources)
+- 🚧 **v1.3** - Prompt system (prompt templates, completion)
+- 🚧 **v1.4** - Sampling system (LLM sampling control)
 - 🚧 **v2.0** - Advanced features (logging, metrics, auth)
 
 ## Contributing
