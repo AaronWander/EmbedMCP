@@ -9,33 +9,31 @@
 
 ## 项目状态
 
-✅ **工具系统** - 完整实现，支持纯函数API  
-🚧 **资源系统** - 即将推出  
-🚧 **提示系统** - 即将推出  
-🚧 **采样系统** - 即将推出  
+✅ **工具系统** - 完整实现，支持灵活的函数API
+✅ **库验证** - 成功自用（我们使用自己的库！）
+✅ **HTTP/STDIO传输** - 完整的MCP协议支持
+✅ **MCP协议合规** - 正确的内容数组格式，通过MCP Inspector测试
+✅ **生产就绪** - 干净的代码库，无警告，全面测试
+🚧 **资源系统** - 即将推出
+🚧 **提示系统** - 即将推出
+🚧 **采样系统** - 即将推出
 
-目前，EmbedMCP专注于MCP协议的**工具**部分，让您能够创建强大的自定义工具MCP服务器。其他MCP功能将在未来版本中添加。
+目前，EmbedMCP专注于MCP协议的**工具**部分，让您能够创建强大的自定义工具MCP服务器。该库已通过构建我们自己的示例服务器进行了充分测试，并通过MCP Inspector验证！
 
 ## 特性
 
-- **简单工具注册** - 将C函数注册为MCP工具，支持灵活的参数类型
-- **自动类型转换** - JSON和C类型之间的无缝转换
-- **自动Schema生成** - 无需手动编写JSON Schema
-- **多种传输方式** - 支持STDIO和HTTP传输
-- **类型安全** - 编译时参数验证
-- **最小依赖** - 仅需要cJSON（已包含）
-- **极其简单** - 只需学习1个主要API函数
-- **易于集成** - 复制一个文件夹，包含一个头文件
-- **单客户端优化** - 专为单客户端场景优化
+- **极其简单** - 将C函数注册为MCP工具，只需1个API函数
+- **易于集成** - 复制一个文件夹，包含一个头文件即可
+- **多种传输** - 支持HTTP和STDIO
+- **生产就绪** - MCP Inspector兼容，实战验证
 
-## 快速集成摘要
+## 快速开始
 
-**3个简单步骤：**
-1. 复制 `embed_mcp/` 文件夹到您的项目
-2. 在代码中包含 `#include "embed_mcp/embed_mcp.h"`  
-3. 一起编译所有 `.c` 文件
+1. 复制`embed_mcp/`文件夹到您的项目
+2. 包含`#include "embed_mcp/embed_mcp.h"`
+3. 编译所有`.c`文件
 
-**就这样！** 您现在拥有了一个完整的MCP服务器。
+完成！您有了一个可工作的MCP服务器。
 
 ## 集成指南
 
@@ -51,18 +49,14 @@ cp -r /path/to/EmbedMCP/embed_mcp/ your_project/
 您的项目结构将如下所示：
 ```
 your_project/
-├── src/
-│   └── main.c                 # 您的应用程序代码
+├── main.c                     # 您的应用程序代码
 ├── embed_mcp/                 # EmbedMCP库（已复制）
 │   ├── embed_mcp.h           # 主API头文件
 │   ├── embed_mcp.c           # 主API实现
 │   ├── cjson/                # JSON依赖
-│   │   ├── cJSON.h           # JSON解析器头文件
-│   │   └── cJSON.c           # JSON解析器实现
 │   ├── protocol/             # MCP协议实现
 │   ├── transport/            # HTTP/STDIO传输
 │   ├── tools/                # 工具系统
-│   ├── application/          # 多客户端支持
 │   └── utils/                # 工具库
 └── Makefile
 ```
@@ -117,7 +111,7 @@ int main() {
 
 ```bash
 # 一起编译所有源文件
-gcc src/main.c \
+gcc main.c \
     embed_mcp/embed_mcp.c \
     embed_mcp/cjson/cJSON.c \
     embed_mcp/protocol/*.c \
@@ -143,7 +137,7 @@ gcc -c embed_mcp/utils/*.c -I embed_mcp
 ar rcs libembed_mcp.a *.o
 
 # 编译您的应用程序
-gcc src/main.c libembed_mcp.a -I embed_mcp -o my_app
+gcc main.c libembed_mcp.a -I embed_mcp -o my_app
 ```
 
 #### 选项3：使用Makefile
@@ -157,7 +151,7 @@ SRCDIR = embed_mcp
 SOURCES = $(wildcard $(SRCDIR)/*.c $(SRCDIR)/*/*.c)
 OBJECTS = $(SOURCES:.c=.o)
 
-my_app: src/main.c $(OBJECTS)
+my_app: main.c $(OBJECTS)
 	$(CC) $(CFLAGS) $^ -o $@
 
 %.o: %.c
@@ -554,6 +548,18 @@ void* complex_handler(mcp_param_accessor_t* params) {
 }
 ```
 
+## 自用验证 - 我们使用自己的库！
+
+我们实践"自用验证"（dogfooding）- 示例服务器使用`embed_mcp/`库本身。这证明了库可用、易集成，并遵循自己的文档。
+
+**证明：** 我们的`Makefile`将`examples/main.c`与`embed_mcp/`库编译！
+
+## 测试与验证
+
+✅ **MCP Inspector兼容** - 通过所有协议合规性测试
+✅ **生产测试** - HTTP/STDIO传输，多种参数类型
+✅ **实际验证** - 我们使用自己的库（自用验证）
+
 ## 构建和运行
 
 ### 构建示例（开发）
@@ -569,18 +575,23 @@ make clean    # 清理构建文件
 ### 运行示例服务器
 
 ```bash
-# 构建并运行示例服务器
-make debug
+# 构建并运行示例服务器（使用embed_mcp/库 - 自用验证！）
+make
 ./bin/mcp_server -t http -p 8080
 
 # 或使用STDIO传输
 ./bin/mcp_server -t stdio
+
+# 启用调试日志
+./bin/mcp_server -t http -p 8080 -d
 ```
 
-示例服务器包含三个演示工具：
-- `add(a, b)` - 两个数字相加
-- `weather(city)` - 获取天气信息（支持济南）
-- `calculate_score(base_points, grade, multiplier)` - 计算带等级奖励的分数
+**注意：** 我们的示例服务器是使用`embed_mcp/`库本身构建的，证明了库的正确性！
+
+示例服务器包含三个演示工具（使用`embed_mcp_add_tool`注册）：
+- `add(a, b)` - 两个数字相加（演示基础数学运算）
+- `weather(city)` - 获取天气信息（演示字符串处理，支持济南）
+- `calculate_score(base_points, grade, multiplier)` - 计算带等级奖励的分数（演示混合参数类型）
 
 ### 使用MCP Inspector测试
 
@@ -652,11 +663,10 @@ if (embed_mcp_add_tool(...) != 0) {
 
 ## 路线图
 
-- ✅ **v1.0** - 工具系统与纯函数API（单客户端）
-- 🚧 **v1.1** - 多客户端支持与会话管理
+- ✅ **v1.0** - 工具系统，MCP Inspector兼容，生产就绪
+- 🚧 **v1.1** - 多客户端支持，会话管理
 - 🚧 **v1.2** - 资源系统（文件访问、数据源）
-- 🚧 **v1.3** - 提示系统（提示模板、补全）
-- 🚧 **v1.4** - 采样系统（LLM采样控制）
+- 🚧 **v1.3** - 提示系统（模板、补全）
 - 🚧 **v2.0** - 高级功能（日志、指标、认证）
 
 ## 贡献

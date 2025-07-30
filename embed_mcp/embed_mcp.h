@@ -30,7 +30,8 @@ typedef enum {
     MCP_PARAM_INT,
     MCP_PARAM_DOUBLE,
     MCP_PARAM_STRING,
-    MCP_PARAM_BOOL
+    MCP_PARAM_BOOL,
+    MCP_PARAM_CHAR        // Single character (transmitted as string)
 } mcp_param_type_t;
 
 // Return types for pure functions
@@ -169,11 +170,41 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config);
  */
 void embed_mcp_destroy(embed_mcp_server_t *server);
 
-
-
-
-
-
+/**
+ * Register a tool function with flexible parameter specification
+ *
+ * This is the main API for registering C functions as MCP tools.
+ * It provides automatic type conversion between JSON and C types.
+ *
+ * Example:
+ * ```c
+ * int my_func(char c, int a, int b, char d) { return c + a + b + d; }
+ *
+ * const char* param_names[] = {"c", "a", "b", "d"};
+ * mcp_param_type_t param_types[] = {MCP_PARAM_CHAR, MCP_PARAM_INT, MCP_PARAM_INT, MCP_PARAM_CHAR};
+ *
+ * embed_mcp_add_tool(server, "my_func", "My custom function",
+ *                    param_names, param_types, 4, MCP_RETURN_INT, my_func);
+ * ```
+ *
+ * @param server Server instance
+ * @param name Tool name
+ * @param description Tool description
+ * @param param_names Array of parameter names
+ * @param param_types Array of parameter types
+ * @param param_count Number of parameters
+ * @param return_type Return value type
+ * @param function_ptr Pointer to user's function
+ * @return 0 on success, -1 on error
+ */
+int embed_mcp_add_tool(embed_mcp_server_t *server,
+                       const char *name,
+                       const char *description,
+                       const char *param_names[],
+                       mcp_param_type_t param_types[],
+                       size_t param_count,
+                       mcp_return_type_t return_type,
+                       void *function_ptr);
 
 // =============================================================================
 // Unified Pure Function API - No JSON handling required
@@ -243,13 +274,11 @@ int embed_mcp_add_pure_function(embed_mcp_server_t *server,
  *
  * Example: Complex nested parameters that pure function API cannot handle
  */
-/*
 int embed_mcp_add_tool_with_schema(embed_mcp_server_t *server,
                                    const char *name,
                                    const char *description,
                                    const cJSON *schema,
                                    embed_mcp_tool_handler_t handler);
-*/
 
 
 

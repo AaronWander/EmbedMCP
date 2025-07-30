@@ -1,4 +1,4 @@
-#include "embed_mcp.h"
+#include "embed_mcp/embed_mcp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

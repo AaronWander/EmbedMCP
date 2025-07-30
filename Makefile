@@ -1,21 +1,20 @@
-# Makefile for EmbedMCP - C Language MCP Server (Modular Architecture)
+# Makefile for EmbedMCP - Using embed_mcp/ library (dogfooding our own library!)
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -g -O2 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L
 LDFLAGS = -lm -lpthread
 
 # Directories
-SRC_DIR = src
-INC_DIR = include
+EMBED_MCP_DIR = embed_mcp
 OBJ_DIR = obj
 BIN_DIR = bin
-CJSON_DIR = cjson
 
-# Module directories
-PROTOCOL_SRC_DIR = $(SRC_DIR)/protocol
-TRANSPORT_SRC_DIR = $(SRC_DIR)/transport
-APPLICATION_SRC_DIR = $(SRC_DIR)/application
-TOOLS_SRC_DIR = $(SRC_DIR)/tools
-UTILS_SRC_DIR = $(SRC_DIR)/utils
+# EmbedMCP library module directories (from embed_mcp/)
+PROTOCOL_SRC_DIR = $(EMBED_MCP_DIR)/protocol
+TRANSPORT_SRC_DIR = $(EMBED_MCP_DIR)/transport
+APPLICATION_SRC_DIR = $(EMBED_MCP_DIR)/application
+TOOLS_SRC_DIR = $(EMBED_MCP_DIR)/tools
+UTILS_SRC_DIR = $(EMBED_MCP_DIR)/utils
+CJSON_DIR = $(EMBED_MCP_DIR)/cjson
 
 PROTOCOL_OBJ_DIR = $(OBJ_DIR)/protocol
 TRANSPORT_OBJ_DIR = $(OBJ_DIR)/transport
@@ -23,13 +22,14 @@ APPLICATION_OBJ_DIR = $(OBJ_DIR)/application
 TOOLS_OBJ_DIR = $(OBJ_DIR)/tools
 UTILS_OBJ_DIR = $(OBJ_DIR)/utils
 
-# Source files
+# Source files (using embed_mcp/ library)
 PROTOCOL_SOURCES = $(wildcard $(PROTOCOL_SRC_DIR)/*.c)
 TRANSPORT_SOURCES = $(wildcard $(TRANSPORT_SRC_DIR)/*.c)
 APPLICATION_SOURCES = $(wildcard $(APPLICATION_SRC_DIR)/*.c)
 TOOLS_SOURCES = $(wildcard $(TOOLS_SRC_DIR)/*.c)
 UTILS_SOURCES = $(wildcard $(UTILS_SRC_DIR)/*.c)
-MAIN_SOURCES = $(wildcard $(SRC_DIR)/*.c)
+EMBED_MCP_MAIN = $(EMBED_MCP_DIR)/embed_mcp.c
+EXAMPLE_MAIN = examples/main.c
 CJSON_SOURCES = $(CJSON_DIR)/cJSON.c
 
 # Object files
@@ -38,11 +38,12 @@ TRANSPORT_OBJECTS = $(TRANSPORT_SOURCES:$(TRANSPORT_SRC_DIR)/%.c=$(TRANSPORT_OBJ
 APPLICATION_OBJECTS = $(APPLICATION_SOURCES:$(APPLICATION_SRC_DIR)/%.c=$(APPLICATION_OBJ_DIR)/%.o)
 TOOLS_OBJECTS = $(TOOLS_SOURCES:$(TOOLS_SRC_DIR)/%.c=$(TOOLS_OBJ_DIR)/%.o)
 UTILS_OBJECTS = $(UTILS_SOURCES:$(UTILS_SRC_DIR)/%.c=$(UTILS_OBJ_DIR)/%.o)
-MAIN_OBJECTS = $(MAIN_SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+EMBED_MCP_OBJECT = $(OBJ_DIR)/embed_mcp.o
+EXAMPLE_OBJECT = $(OBJ_DIR)/main.o
 CJSON_OBJECTS = $(OBJ_DIR)/cJSON.o
 
 ALL_OBJECTS = $(PROTOCOL_OBJECTS) $(TRANSPORT_OBJECTS) $(APPLICATION_OBJECTS) \
-              $(TOOLS_OBJECTS) $(UTILS_OBJECTS) $(MAIN_OBJECTS) $(CJSON_OBJECTS)
+              $(TOOLS_OBJECTS) $(UTILS_OBJECTS) $(EMBED_MCP_OBJECT) $(EXAMPLE_OBJECT) $(CJSON_OBJECTS)
 
 # Target executable
 TARGET = $(BIN_DIR)/mcp_server
@@ -74,31 +75,35 @@ $(CJSON_DIR)/cJSON.c: | $(CJSON_DIR)
 $(TARGET): $(ALL_OBJECTS) | $(BIN_DIR)
 	$(CC) $(ALL_OBJECTS) -o $@ $(LDFLAGS)
 
-# Compile protocol module
+# Compile protocol module (from embed_mcp/)
 $(PROTOCOL_OBJ_DIR)/%.o: $(PROTOCOL_SRC_DIR)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(CJSON_DIR) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(EMBED_MCP_DIR) -I$(CJSON_DIR) -c $< -o $@
 
-# Compile transport module
+# Compile transport module (from embed_mcp/)
 $(TRANSPORT_OBJ_DIR)/%.o: $(TRANSPORT_SRC_DIR)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(CJSON_DIR) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(EMBED_MCP_DIR) -I$(CJSON_DIR) -c $< -o $@
 
-# Compile application module
+# Compile application module (from embed_mcp/)
 $(APPLICATION_OBJ_DIR)/%.o: $(APPLICATION_SRC_DIR)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(CJSON_DIR) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(EMBED_MCP_DIR) -I$(CJSON_DIR) -c $< -o $@
 
-# Compile tools module
+# Compile tools module (from embed_mcp/)
 $(TOOLS_OBJ_DIR)/%.o: $(TOOLS_SRC_DIR)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(CJSON_DIR) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(EMBED_MCP_DIR) -I$(CJSON_DIR) -c $< -o $@
 
-# Compile utils module
+# Compile utils module (from embed_mcp/)
 $(UTILS_OBJ_DIR)/%.o: $(UTILS_SRC_DIR)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(CJSON_DIR) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(EMBED_MCP_DIR) -I$(CJSON_DIR) -c $< -o $@
 
-# Compile main source files
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -I$(CJSON_DIR) -c $< -o $@
+# Compile embed_mcp main library file
+$(OBJ_DIR)/embed_mcp.o: $(EMBED_MCP_MAIN) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(EMBED_MCP_DIR) -I$(CJSON_DIR) -c $< -o $@
 
-# Compile cJSON
+# Compile example main (uses embed_mcp/ library)
+$(OBJ_DIR)/main.o: $(EXAMPLE_MAIN) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I. -I$(CJSON_DIR) -c $< -o $@
+
+# Compile cJSON (from embed_mcp/)
 $(OBJ_DIR)/cJSON.o: $(CJSON_DIR)/cJSON.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(CJSON_DIR) -c $< -o $@
 
@@ -170,28 +175,23 @@ check:
 # Create distribution package for easy integration
 dist: debug
 	@echo "Creating distribution package..."
-	@mkdir -p dist/embed_mcp/include/embed_mcp
-	@mkdir -p dist/embed_mcp/lib
+	@mkdir -p dist/embed_mcp
 	@mkdir -p dist/embed_mcp/examples
 
-	# Copy headers with proper structure
-	@cp include/embed_mcp.h dist/embed_mcp/include/embed_mcp/
-	@cp cjson/cJSON.h dist/embed_mcp/include/embed_mcp/
+	# Copy the complete embed_mcp library
+	@cp -r embed_mcp/* dist/embed_mcp/
 
-	# Create static library
-	@mkdir -p lib
-	@ar rcs lib/libembed_mcp.a $(OBJ_DIR)/embed_mcp.o $(CJSON_DIR)/cJSON.o $(PROTOCOL_OBJECTS) $(TRANSPORT_OBJECTS) $(TOOLS_OBJECTS) $(UTILS_OBJECTS)
-	@cp lib/libembed_mcp.a dist/embed_mcp/lib/
+	# Note: Library is already included as source files in embed_mcp/
 
 	# Copy examples
 	@cp examples/*.c dist/embed_mcp/examples/ 2>/dev/null || true
-	@cp src/main.c dist/embed_mcp/examples/server_example.c
+	@cp examples/main.c dist/embed_mcp/examples/server_example.c
 
 	@echo "Distribution package created in dist/embed_mcp/"
 	@echo ""
 	@echo "Integration instructions:"
 	@echo "1. Copy dist/embed_mcp/ to your project"
-	@echo "2. Include: #include \"embed_mcp/include/embed_mcp/embed_mcp.h\""
-	@echo "3. Compile: gcc your_app.c embed_mcp/lib/libembed_mcp.a -I embed_mcp/include -o your_app"
+	@echo "2. Include: #include \"embed_mcp/embed_mcp.h\""
+	@echo "3. Compile: gcc your_app.c embed_mcp/*.c embed_mcp/*/*.c -I. -o your_app"
 
 .PHONY: all clean distclean deps test debug protocol transport application tools utils info check dist
