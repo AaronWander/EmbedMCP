@@ -1,4 +1,5 @@
 #include "transport/http_transport.h"
+#include "hal/platform_hal.h"
 #include "utils/logging.h"
 #include <stdlib.h>
 #include <string.h>
@@ -133,9 +134,20 @@ int mcp_http_transport_start_impl(mcp_transport_t *transport) {
         return -1;
     }
     
-    // Start server thread
+    // Start server thread using HAL
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) {
+        mcp_log_error("Failed to get platform HAL");
+        return -1;
+    }
+
     data->server_running = true;
-    if (pthread_create(&data->server_thread, NULL, mcp_http_server_thread, transport) != 0) {
+    void *thread_handle;
+    int thread_result = hal->thread.create(&thread_handle, mcp_http_server_thread, transport, 0);
+    if (thread_result == 0) {
+        // Store thread handle in a way compatible with pthread_t
+        data->server_thread = *(pthread_t*)&thread_handle;
+    } else {
         mcp_log_error("Failed to create HTTP server thread");
         data->server_running = false;
         free(data->connections);
@@ -361,8 +373,21 @@ mcp_connection_t *mcp_http_connection_create(mcp_transport_t *transport, int soc
         return NULL;
     }
 
-    // Start connection handler thread
-    if (pthread_create(&conn_data->handler_thread, NULL, mcp_http_connection_handler_thread, connection) == 0) {
+    // Start connection handler thread using HAL
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) {
+        mcp_log_error("Failed to get platform HAL");
+        free(conn_data->request_buffer);
+        free(connection->connection_id);
+        free(conn_data);
+        free(connection);
+        return NULL;
+    }
+
+    void *thread_handle;
+    int thread_result = hal->thread.create(&thread_handle, mcp_http_connection_handler_thread, connection, 0);
+    if (thread_result == 0) {
+        conn_data->handler_thread = *(pthread_t*)&thread_handle;
         conn_data->thread_active = true;
     } else {
         mcp_log_error("Failed to create HTTP connection handler thread");

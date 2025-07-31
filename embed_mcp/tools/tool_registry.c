@@ -1,5 +1,6 @@
 #include "tools/tool_registry.h"
 #include "tools/builtin_tools.h"
+#include "hal/platform_hal.h"
 #include "utils/logging.h"
 #include <stdlib.h>
 #include <string.h>
@@ -7,8 +8,12 @@
 
 // Tool registry lifecycle
 mcp_tool_registry_t *mcp_tool_registry_create(const mcp_tool_registry_config_t *config) {
-    mcp_tool_registry_t *registry = calloc(1, sizeof(mcp_tool_registry_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_tool_registry_t *registry = hal->memory.alloc(sizeof(mcp_tool_registry_t));
     if (!registry) return NULL;
+    memset(registry, 0, sizeof(mcp_tool_registry_t));
     
     // Initialize configuration
     if (config) {
@@ -51,26 +56,32 @@ mcp_tool_registry_t *mcp_tool_registry_create(const mcp_tool_registry_config_t *
 
 void mcp_tool_registry_destroy(mcp_tool_registry_t *registry) {
     if (!registry) return;
-    
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+
     // Unregister all tools
     pthread_rwlock_wrlock(&registry->tools_lock);
-    
+
     mcp_tool_entry_t *current = registry->tools;
     while (current) {
         mcp_tool_entry_t *next = current->next;
         mcp_tool_unref(current->tool);
-        free(current);
+        if (hal) {
+            hal->memory.free(current);
+        }
         current = next;
     }
-    
+
     pthread_rwlock_unlock(&registry->tools_lock);
-    
+
     // Cleanup thread safety
     pthread_rwlock_destroy(&registry->tools_lock);
     pthread_mutex_destroy(&registry->registry_mutex);
-    
-    free(registry);
-    
+
+    if (hal) {
+        hal->memory.free(registry);
+    }
+
     mcp_log_info("Tool registry destroyed");
 }
 

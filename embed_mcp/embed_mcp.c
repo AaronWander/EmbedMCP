@@ -4,6 +4,8 @@
 #include "tools/tool_registry.h"
 #include "tools/tool_interface.h"
 #include "application/session_manager.h"
+#include "hal/platform_hal.h"
+#include "hal/hal_common.h"
 #include "utils/logging.h"
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +15,8 @@
 // Global error message
 static char g_error_message[512] = {0};
 static volatile int g_running = 1;
+
+// HAL helper functions are now in hal_common.h/c
 
 // Server structure
 struct embed_mcp_server {
@@ -299,19 +303,48 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config) {
         set_error("Invalid configuration");
         return NULL;
     }
-    
-    embed_mcp_server_t *server = calloc(1, sizeof(embed_mcp_server_t));
-    if (!server) {
-        set_error("Memory allocation failed");
+
+    // Initialize platform HAL
+    if (mcp_platform_init() != 0) {
+        set_error("Platform initialization failed");
         return NULL;
     }
+
+    const mcp_platform_hal_t *hal;
+    hal_result_t hal_result = hal_safe_get(&hal);
+    if (hal_result != HAL_OK) {
+        set_error(hal_get_error_string(hal_result));
+        return NULL;
+    }
+
+    // Use HAL memory allocation
+    embed_mcp_server_t *server;
+    hal_result = hal_safe_alloc(hal, sizeof(embed_mcp_server_t), (void**)&server);
+    if (hal_result != HAL_OK) {
+        set_error(hal_get_error_string(hal_result));
+        return NULL;
+    }
+    memset(server, 0, sizeof(embed_mcp_server_t));
     
-    // Copy configuration
-    server->name = strdup(config->name);
-    server->version = strdup(config->version);
-    server->host = strdup(config->host ? config->host : "0.0.0.0");
+    // Copy configuration using HAL memory allocation
+    server->name = hal_strdup(hal, config->name);
+    server->version = hal_strdup(hal, config->version);
+    server->host = hal_strdup(hal, config->host ? config->host : "0.0.0.0");
+    server->path = hal_strdup(hal, config->path ? config->path : "/mcp");
+
+    // Check if string allocation succeeded
+    if (!server->name || !server->version || !server->host || !server->path) {
+        // Cleanup on failure using unified hal_free
+        hal_free(hal, server->name);
+        hal_free(hal, server->version);
+        hal_free(hal, server->host);
+        hal_free(hal, server->path);
+        hal_free(hal, server);
+        set_error("String allocation failed");
+        return NULL;
+    }
+
     server->port = config->port > 0 ? config->port : 8080;
-    server->path = strdup(config->path ? config->path : "/mcp");
     server->debug = config->debug;
 
     // Multi-session configuration
@@ -320,11 +353,7 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config) {
     server->enable_sessions = config->enable_sessions != 0 ? config->enable_sessions : 1;
     server->auto_cleanup = config->auto_cleanup != 0 ? config->auto_cleanup : 1;
 
-    if (!server->name || !server->version || !server->host || !server->path) {
-        embed_mcp_destroy(server);
-        set_error("Memory allocation failed");
-        return NULL;
-    }
+    // This check was moved earlier in the function
     
     // Create tool registry
     mcp_tool_registry_config_t registry_config = {0};
@@ -390,15 +419,18 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config) {
 
 void embed_mcp_destroy(embed_mcp_server_t *server) {
     if (!server) return;
-    
+
+    // Get HAL for memory deallocation
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+
     if (server->transport) {
         mcp_transport_destroy(server->transport);
     }
-    
+
     if (server->protocol) {
         mcp_protocol_destroy(server->protocol);
     }
-    
+
     if (server->tool_registry) {
         mcp_tool_registry_destroy(server->tool_registry);
     }
@@ -407,11 +439,15 @@ void embed_mcp_destroy(embed_mcp_server_t *server) {
         mcp_session_manager_destroy(server->session_manager);
     }
 
-    free(server->name);
-    free(server->version);
-    free(server->host);
-    free(server->path);
-    free(server);
+    // Use HAL memory deallocation
+    hal_free(hal, server->name);
+    hal_free(hal, server->version);
+    hal_free(hal, server->host);
+    hal_free(hal, server->path);
+    hal_free(hal, server);
+
+    // Cleanup platform HAL
+    mcp_platform_cleanup();
 }
 
 

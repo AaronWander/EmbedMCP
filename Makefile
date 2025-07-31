@@ -14,6 +14,7 @@ TRANSPORT_SRC_DIR = $(EMBED_MCP_DIR)/transport
 APPLICATION_SRC_DIR = $(EMBED_MCP_DIR)/application
 TOOLS_SRC_DIR = $(EMBED_MCP_DIR)/tools
 UTILS_SRC_DIR = $(EMBED_MCP_DIR)/utils
+HAL_SRC_DIR = $(EMBED_MCP_DIR)/hal
 CJSON_DIR = $(EMBED_MCP_DIR)/cjson
 
 PROTOCOL_OBJ_DIR = $(OBJ_DIR)/protocol
@@ -21,6 +22,7 @@ TRANSPORT_OBJ_DIR = $(OBJ_DIR)/transport
 APPLICATION_OBJ_DIR = $(OBJ_DIR)/application
 TOOLS_OBJ_DIR = $(OBJ_DIR)/tools
 UTILS_OBJ_DIR = $(OBJ_DIR)/utils
+HAL_OBJ_DIR = $(OBJ_DIR)/hal
 
 # Source files (using embed_mcp/ library)
 PROTOCOL_SOURCES = $(wildcard $(PROTOCOL_SRC_DIR)/*.c)
@@ -28,6 +30,7 @@ TRANSPORT_SOURCES = $(wildcard $(TRANSPORT_SRC_DIR)/*.c)
 APPLICATION_SOURCES = $(wildcard $(APPLICATION_SRC_DIR)/*.c)
 TOOLS_SOURCES = $(wildcard $(TOOLS_SRC_DIR)/*.c)
 UTILS_SOURCES = $(wildcard $(UTILS_SRC_DIR)/*.c)
+HAL_SOURCES = $(wildcard $(HAL_SRC_DIR)/*.c)
 EMBED_MCP_MAIN = $(EMBED_MCP_DIR)/embed_mcp.c
 EXAMPLE_MAIN = examples/main.c
 CJSON_SOURCES = $(CJSON_DIR)/cJSON.c
@@ -38,12 +41,13 @@ TRANSPORT_OBJECTS = $(TRANSPORT_SOURCES:$(TRANSPORT_SRC_DIR)/%.c=$(TRANSPORT_OBJ
 APPLICATION_OBJECTS = $(APPLICATION_SOURCES:$(APPLICATION_SRC_DIR)/%.c=$(APPLICATION_OBJ_DIR)/%.o)
 TOOLS_OBJECTS = $(TOOLS_SOURCES:$(TOOLS_SRC_DIR)/%.c=$(TOOLS_OBJ_DIR)/%.o)
 UTILS_OBJECTS = $(UTILS_SOURCES:$(UTILS_SRC_DIR)/%.c=$(UTILS_OBJ_DIR)/%.o)
+HAL_OBJECTS = $(HAL_SOURCES:$(HAL_SRC_DIR)/%.c=$(HAL_OBJ_DIR)/%.o)
 EMBED_MCP_OBJECT = $(OBJ_DIR)/embed_mcp.o
 EXAMPLE_OBJECT = $(OBJ_DIR)/main.o
 CJSON_OBJECTS = $(OBJ_DIR)/cJSON.o
 
 ALL_OBJECTS = $(PROTOCOL_OBJECTS) $(TRANSPORT_OBJECTS) $(APPLICATION_OBJECTS) \
-              $(TOOLS_OBJECTS) $(UTILS_OBJECTS) $(EMBED_MCP_OBJECT) $(EXAMPLE_OBJECT) $(CJSON_OBJECTS)
+              $(TOOLS_OBJECTS) $(UTILS_OBJECTS) $(HAL_OBJECTS) $(EMBED_MCP_OBJECT) $(EXAMPLE_OBJECT) $(CJSON_OBJECTS)
 
 # Target executable
 TARGET = $(BIN_DIR)/mcp_server
@@ -59,6 +63,7 @@ $(OBJ_DIR):
 	mkdir -p $(APPLICATION_OBJ_DIR)
 	mkdir -p $(TOOLS_OBJ_DIR)
 	mkdir -p $(UTILS_OBJ_DIR)
+	mkdir -p $(HAL_OBJ_DIR)
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
@@ -93,6 +98,10 @@ $(TOOLS_OBJ_DIR)/%.o: $(TOOLS_SRC_DIR)/%.c | $(OBJ_DIR)
 
 # Compile utils module (from embed_mcp/)
 $(UTILS_OBJ_DIR)/%.o: $(UTILS_SRC_DIR)/%.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(EMBED_MCP_DIR) -I$(CJSON_DIR) -c $< -o $@
+
+# Compile HAL module (from embed_mcp/)
+$(HAL_OBJ_DIR)/%.o: $(HAL_SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(EMBED_MCP_DIR) -I$(CJSON_DIR) -c $< -o $@
 
 # Compile embed_mcp main library file
@@ -142,6 +151,9 @@ tools: $(TOOLS_OBJECTS)
 utils: $(UTILS_OBJECTS)
 	@echo "Utils module compiled successfully"
 
+hal: $(HAL_OBJECTS)
+	@echo "HAL module compiled successfully"
+
 # Show build information
 info:
 	@echo "EmbedMCP Modular Build Information:"
@@ -151,12 +163,14 @@ info:
 	@echo "    Application: $(APPLICATION_SRC_DIR)"
 	@echo "    Tools:       $(TOOLS_SRC_DIR)"
 	@echo "    Utils:       $(UTILS_SRC_DIR)"
+	@echo "    HAL:         $(HAL_SRC_DIR)"
 	@echo "  Object directories:"
 	@echo "    Protocol:    $(PROTOCOL_OBJ_DIR)"
 	@echo "    Transport:   $(TRANSPORT_OBJ_DIR)"
 	@echo "    Application: $(APPLICATION_OBJ_DIR)"
 	@echo "    Tools:       $(TOOLS_OBJ_DIR)"
 	@echo "    Utils:       $(UTILS_OBJ_DIR)"
+	@echo "    HAL:         $(HAL_OBJ_DIR)"
 	@echo "  Include path: $(INC_DIR)"
 	@echo "  cJSON path:   $(CJSON_DIR)"
 	@echo "  Target:       $(TARGET)"

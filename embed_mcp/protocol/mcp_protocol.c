@@ -1,18 +1,23 @@
 #include "protocol/mcp_protocol.h"
+#include "hal/platform_hal.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
 // Protocol lifecycle
 mcp_protocol_t *mcp_protocol_create(const mcp_protocol_config_t *config) {
-    mcp_protocol_t *protocol = calloc(1, sizeof(mcp_protocol_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_protocol_t *protocol = hal->memory.alloc(sizeof(mcp_protocol_t));
     if (!protocol) return NULL;
-    
+    memset(protocol, 0, sizeof(mcp_protocol_t));
+
     // Initialize configuration
     if (config) {
-        protocol->config = calloc(1, sizeof(mcp_protocol_config_t));
+        protocol->config = hal->memory.alloc(sizeof(mcp_protocol_config_t));
         if (!protocol->config) {
-            free(protocol);
+            hal->memory.free(protocol);
             return NULL;
         }
         *protocol->config = *config;
@@ -70,17 +75,26 @@ mcp_protocol_t *mcp_protocol_create(const mcp_protocol_config_t *config) {
 
 void mcp_protocol_destroy(mcp_protocol_t *protocol) {
     if (!protocol) return;
-    
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+
     jsonrpc_parser_destroy(protocol->parser);
     mcp_protocol_state_destroy(protocol->state_machine);
     mcp_protocol_config_destroy(protocol->config);
-    free(protocol);
+
+    if (hal) {
+        hal->memory.free(protocol);
+    }
 }
 
 // Configuration management
 mcp_protocol_config_t *mcp_protocol_config_create_default(void) {
-    mcp_protocol_config_t *config = calloc(1, sizeof(mcp_protocol_config_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_protocol_config_t *config = hal->memory.alloc(sizeof(mcp_protocol_config_t));
     if (!config) return NULL;
+    memset(config, 0, sizeof(mcp_protocol_config_t));
     
     config->strict_mode = true;
     config->enable_logging = true;
@@ -97,11 +111,16 @@ mcp_protocol_config_t *mcp_protocol_config_create_default(void) {
 
 void mcp_protocol_config_destroy(mcp_protocol_config_t *config) {
     if (!config) return;
-    
-    free(config->server_name);
-    free(config->server_version);
-    mcp_capabilities_destroy(config->capabilities);
-    free(config);
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+
+    if (hal) {
+        if (config->server_name) hal->memory.free(config->server_name);
+        if (config->server_version) hal->memory.free(config->server_version);
+
+        mcp_capabilities_destroy(config->capabilities);
+        hal->memory.free(config);
+    }
 }
 
 int mcp_protocol_config_set_server_info(mcp_protocol_config_t *config,

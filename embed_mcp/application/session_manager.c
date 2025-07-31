@@ -1,4 +1,5 @@
 #include "session_manager.h"
+#include "hal/platform_hal.h"
 #include "utils/logging.h"
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +9,11 @@
 // 生成会话ID
 char *mcp_session_generate_id(void) {
     static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    char *session_id = malloc(33); // 32字符 + null terminator
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    char *session_id = hal->memory.alloc(33); // 32字符 + null terminator
     if (!session_id) return NULL;
     
     srand((unsigned int)time(NULL) + (unsigned int)getpid());
@@ -61,19 +66,24 @@ void mcp_session_manager_config_destroy(mcp_session_manager_config_t *config) {
 // 创建会话管理器
 mcp_session_manager_t *mcp_session_manager_create(const mcp_session_manager_config_t *config) {
     if (!config) return NULL;
-    
-    mcp_session_manager_t *manager = malloc(sizeof(mcp_session_manager_t));
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_session_manager_t *manager = hal->memory.alloc(sizeof(mcp_session_manager_t));
     if (!manager) return NULL;
-    
+    memset(manager, 0, sizeof(mcp_session_manager_t));
+
     // 复制配置
     manager->config = *config;
-    
+
     // 初始化会话存储
-    manager->sessions = calloc(config->max_sessions, sizeof(mcp_session_t*));
+    manager->sessions = hal->memory.alloc(config->max_sessions * sizeof(mcp_session_t*));
     if (!manager->sessions) {
-        free(manager);
+        hal->memory.free(manager);
         return NULL;
     }
+    memset(manager->sessions, 0, config->max_sessions * sizeof(mcp_session_t*));
     
     manager->session_count = 0;
     manager->session_capacity = config->max_sessions;
@@ -164,8 +174,20 @@ int mcp_session_manager_start(mcp_session_manager_t *manager) {
     
     if (manager->config.auto_cleanup) {
         manager->cleanup_running = true;
-        
-        if (pthread_create(&manager->cleanup_thread, NULL, session_cleanup_thread, manager) != 0) {
+
+        const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+        if (!hal) {
+            manager->cleanup_running = false;
+            pthread_mutex_unlock(&manager->manager_mutex);
+            mcp_log_error("Failed to get platform HAL");
+            return -1;
+        }
+
+        void *thread_handle;
+        int thread_result = hal->thread.create(&thread_handle, session_cleanup_thread, manager, 0);
+        if (thread_result == 0) {
+            manager->cleanup_thread = *(pthread_t*)&thread_handle;
+        } else {
             manager->cleanup_running = false;
             pthread_mutex_unlock(&manager->manager_mutex);
             mcp_log_error("Failed to create session cleanup thread");
