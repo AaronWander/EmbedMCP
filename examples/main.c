@@ -141,7 +141,13 @@ int main(int argc, char *argv[]) {
         .port = port,
         .path = endpoint_path,
         .max_tools = 100,
-        .debug = debug
+        .debug = debug,
+
+        // Multi-session configuration
+        .max_connections = 5,       // Allow up to 5 concurrent connections
+        .session_timeout = 1800,    // 30 minutes session timeout
+        .enable_sessions = 1,       // Enable session management
+        .auto_cleanup = 1           // Auto cleanup expired sessions
     };
 
     // Create server instance

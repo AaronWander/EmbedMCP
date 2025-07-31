@@ -3,6 +3,7 @@
 #include "transport/transport_interface.h"
 #include "tools/tool_registry.h"
 #include "tools/tool_interface.h"
+#include "application/session_manager.h"
 #include "utils/logging.h"
 #include <stdlib.h>
 #include <string.h>
@@ -22,10 +23,17 @@ struct embed_mcp_server {
     char *path;
     int debug;
 
+    // Multi-session support
+    int max_connections;
+    int session_timeout;
+    int enable_sessions;
+    int auto_cleanup;
+
     mcp_protocol_t *protocol;
     mcp_transport_t *transport;
     mcp_tool_registry_t *tool_registry;
-    mcp_connection_t *current_connection;
+    mcp_session_manager_t *session_manager;
+    mcp_connection_t *current_connection;  // For backward compatibility
 
     int running;
 };
@@ -306,6 +314,12 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config) {
     server->path = strdup(config->path ? config->path : "/mcp");
     server->debug = config->debug;
 
+    // Multi-session configuration
+    server->max_connections = config->max_connections > 0 ? config->max_connections : 10;
+    server->session_timeout = config->session_timeout > 0 ? config->session_timeout : 3600;
+    server->enable_sessions = config->enable_sessions != 0 ? config->enable_sessions : 1;
+    server->auto_cleanup = config->auto_cleanup != 0 ? config->auto_cleanup : 1;
+
     if (!server->name || !server->version || !server->host || !server->path) {
         embed_mcp_destroy(server);
         set_error("Memory allocation failed");
@@ -340,6 +354,25 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config) {
     mcp_protocol_set_send_callback(server->protocol, protocol_send_callback, server);
     mcp_protocol_set_request_handler(server->protocol, protocol_request_handler, server);
 
+    // Create session manager if enabled
+    if (server->enable_sessions) {
+        mcp_session_manager_config_t *session_config = mcp_session_manager_config_create_default();
+        if (session_config) {
+            session_config->max_sessions = server->max_connections;
+            session_config->default_session_timeout = server->session_timeout;
+            session_config->auto_cleanup = server->auto_cleanup;
+
+            server->session_manager = mcp_session_manager_create(session_config);
+            mcp_session_manager_config_destroy(session_config);
+
+            if (!server->session_manager) {
+                embed_mcp_destroy(server);
+                set_error("Failed to create session manager");
+                return NULL;
+            }
+        }
+    }
+
     // Initialize logging system
     mcp_log_config_t *log_config = mcp_log_config_create_default();
     if (log_config) {
@@ -369,7 +402,11 @@ void embed_mcp_destroy(embed_mcp_server_t *server) {
     if (server->tool_registry) {
         mcp_tool_registry_destroy(server->tool_registry);
     }
-    
+
+    if (server->session_manager) {
+        mcp_session_manager_destroy(server->session_manager);
+    }
+
     free(server->name);
     free(server->version);
     free(server->host);
@@ -582,6 +619,16 @@ int embed_mcp_run(embed_mcp_server_t *server, embed_mcp_transport_t transport) {
                                on_transport_error,
                                server);
 
+    // Start session manager if enabled
+    if (server->session_manager) {
+        if (mcp_session_manager_start(server->session_manager) != 0) {
+            mcp_transport_destroy(server->transport);
+            server->transport = NULL;
+            set_error("Failed to start session manager");
+            return -1;
+        }
+    }
+
     // Start transport
     if (mcp_transport_start(server->transport) != 0) {
         set_error("Failed to start transport");
@@ -612,6 +659,11 @@ int embed_mcp_run(embed_mcp_server_t *server, embed_mcp_transport_t transport) {
 
     // Stop transport
     mcp_transport_stop(server->transport);
+
+    // Stop session manager if enabled
+    if (server->session_manager) {
+        mcp_session_manager_stop(server->session_manager);
+    }
 
     if (server->debug) {
         mcp_log_info("Server stopped");

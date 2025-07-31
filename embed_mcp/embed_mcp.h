@@ -151,6 +151,12 @@ typedef struct {
     const char *path;           // HTTP endpoint path (default: "/mcp")
     int max_tools;              // Maximum number of tools allowed (default: 100)
     int debug;                  // Enable debug logging (0=off, 1=on, default: 0)
+
+    // Multi-session support
+    int max_connections;        // Maximum concurrent connections (default: 10)
+    int session_timeout;        // Session timeout in seconds (default: 3600)
+    int enable_sessions;        // Enable session management (0=off, 1=on, default: 1)
+    int auto_cleanup;           // Auto cleanup expired sessions (0=off, 1=on, default: 1)
 } embed_mcp_config_t;
 
 // =============================================================================

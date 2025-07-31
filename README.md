@@ -10,21 +10,24 @@ A lightweight C library for creating MCP (Model Context Protocol) servers with p
 ## Project Status
 
 ✅ **Tool System** - Complete implementation with flexible function API
+✅ **Multi-Session Support** - Concurrent connections with session management
 ✅ **Library Validation** - Successfully dogfooded (we use our own library!)
 ✅ **HTTP/STDIO Transport** - Full MCP protocol support
 ✅ **MCP Protocol Compliance** - Proper content array format, tested with MCP Inspector
-✅ **Production Ready** - Clean codebase, no warnings, comprehensive testing
+✅ **Production Ready** - Clean codebase, comprehensive testing, thread-safe
 🚧 **Resource System** - Coming soon
 🚧 **Prompt System** - Coming soon
 🚧 **Sampling System** - Coming soon
 
-Currently, EmbedMCP focuses on the **Tool** part of MCP protocol, allowing you to create powerful MCP servers with custom tools. The library has been thoroughly tested by building our own example server with it and validated with MCP Inspector!
+Currently, EmbedMCP focuses on the **Tool** part of MCP protocol, allowing you to create powerful MCP servers with custom tools and support multiple concurrent clients. The library has been thoroughly tested by building our own example server with it and validated with MCP Inspector!
 
 ## Features
 
 - **Extremely Simple** - Register C functions as MCP tools with just 1 API function
+- **Multi-Session Support** - Handle multiple concurrent clients with session management
 - **Easy Integration** - Copy one folder, include one header file
 - **Multiple Transports** - HTTP and STDIO support
+- **Thread-Safe** - Concurrent connections with proper synchronization
 - **Production Ready** - MCP Inspector compatible, battle-tested
 
 ## Quick Start
@@ -82,7 +85,13 @@ int main() {
         .port = 8080,           // HTTP port
         .path = "/mcp",         // HTTP endpoint path
         .max_tools = 100,       // Maximum number of tools
-        .debug = 0              // Debug logging (0=off, 1=on)
+        .debug = 0,             // Debug logging (0=off, 1=on)
+
+        // Multi-session configuration
+        .max_connections = 10,  // Max concurrent connections
+        .session_timeout = 3600,// Session timeout (seconds)
+        .enable_sessions = 1,   // Enable session management
+        .auto_cleanup = 1       // Auto cleanup expired sessions
     };
 
     // Create server
@@ -521,8 +530,30 @@ We practice "dogfooding" - our example server uses the `embed_mcp/` library itse
 ## Testing & Validation
 
 ✅ **MCP Inspector Compatible** - Passes all protocol compliance tests
+✅ **Multi-Session Tested** - Supports concurrent connections with session isolation
 ✅ **Production Tested** - HTTP/STDIO transports, multiple parameter types
 ✅ **Real-World Validated** - We use our own library (dogfooding)
+
+### Multi-Session Testing
+
+Test concurrent connections with multiple MCP Inspector instances:
+
+```bash
+# Start the server
+./bin/mcp_server -t http -p 8080 -d
+
+# Start multiple MCP Inspector instances
+npx @modelcontextprotocol/inspector --config config1.json
+PORT=6278 npx @modelcontextprotocol/inspector  # Different port
+
+# Connect both to: http://localhost:8080/mcp
+```
+
+Each connection creates an independent session with:
+- Unique session ID
+- Independent session state
+- Automatic timeout and cleanup
+- Thread-safe concurrent access
 
 ## Building and Running
 
@@ -643,9 +674,10 @@ if (embed_mcp_add_pure_function(...) != 0) {
 ## Roadmap
 
 - ✅ **v1.0** - Tool system, MCP Inspector compatible, production ready
-- 🚧 **v1.1** - Multi-client support, session management
-- 🚧 **v1.2** - Resource system (file access, data sources)
-- 🚧 **v1.3** - Prompt system (templates, completion)
+- ✅ **v1.1** - Multi-session support, concurrent connections, session management
+- 🚧 **v1.2** - RTOS/Embedded Linux platform abstraction layer (HAL)
+- 🚧 **v1.3** - Resource system (file access, data sources)
+- 🚧 **v1.4** - Prompt system (templates, completion)
 - 🚧 **v2.0** - Advanced features (logging, metrics, auth)
 
 ## Contributing
