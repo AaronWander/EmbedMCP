@@ -11,24 +11,56 @@ A lightweight C library for creating MCP (Model Context Protocol) servers with p
 
 ✅ **Tool System** - Complete implementation with flexible function API
 ✅ **Multi-Session Support** - Concurrent connections with session management
-✅ **Library Validation** - Successfully dogfooded (we use our own library!)
+✅ **HAL Architecture** - Hardware Abstraction Layer for cross-platform support
+✅ **Cross-Platform Ready** - Linux, embedded Linux, RTOS support via HAL
 ✅ **HTTP/STDIO Transport** - Full MCP protocol support
-✅ **MCP Protocol Compliance** - Proper content array format, tested with MCP Inspector
-✅ **Production Ready** - Clean codebase, comprehensive testing, thread-safe
 🚧 **Resource System** - Coming soon
 🚧 **Prompt System** - Coming soon
 🚧 **Sampling System** - Coming soon
 
-Currently, EmbedMCP focuses on the **Tool** part of MCP protocol, allowing you to create powerful MCP servers with custom tools and support multiple concurrent clients. The library has been thoroughly tested by building our own example server with it and validated with MCP Inspector!
+Currently, EmbedMCP focuses on the **Tool** part of MCP protocol, allowing you to create powerful MCP servers with custom tools and support multiple concurrent clients. The library features a Hardware Abstraction Layer (HAL) that enables the same application code to run on Linux, embedded Linux, and various RTOS platforms without modification!
 
 ## Features
 
-- **Extremely Simple** - Register C functions as MCP tools with just 1 API function
+- **Cross-Platform** - Same code runs on Linux, embedded Linux, and RTOS via HAL
 - **Multi-Session Support** - Handle multiple concurrent clients with session management
 - **Easy Integration** - Copy one folder, include one header file
-- **Multiple Transports** - HTTP and STDIO support
-- **Thread-Safe** - Concurrent connections with proper synchronization
-- **Production Ready** - MCP Inspector compatible, battle-tested
+- **Multiple Transports** - HTTP and STDIO support (UART/SPI/CAN for RTOS)
+
+## Cross-Platform Architecture
+
+EmbedMCP features a **Hardware Abstraction Layer (HAL)** that enables the same application code to run on multiple platforms without modification:
+
+### Supported Platforms
+- ✅ **Embedded Linux** - Raspberry Pi, embedded systems
+- 🚧 **FreeRTOS** - Real-time operating system
+- 🚧 **Zephyr** - IoT and embedded applications
+- 🚧 **ROS2** - Robotics applications
+
+### Write Once, Run Everywhere
+```c
+// This exact code runs on ALL platforms
+double add_numbers(double a, double b) {
+    return a + b;  // Pure business logic
+}
+
+int main() {
+    embed_mcp_config_t config = {
+        .name = "MyApp", .version = "1.0.0", .port = 8080
+    };
+
+    embed_mcp_server_t *server = embed_mcp_create(&config);
+
+    // Register the add function
+    const char* param_names[] = {"a", "b"};
+    mcp_param_type_t param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
+    embed_mcp_add_tool(server, "add", "Add numbers", param_names, param_types, 2, MCP_RETURN_DOUBLE, add_numbers);
+
+    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);  // Works on Linux, RTOS, ROS2, etc.
+    embed_mcp_destroy(server);
+    return 0;
+}
+```
 
 ## Quick Start
 
@@ -38,7 +70,11 @@ Currently, EmbedMCP focuses on the **Tool** part of MCP protocol, allowing you t
 
 Done! You have a working MCP server.
 
+**💡 Tip:** Check out the `examples/` folder for complete working examples!
+
 ## Integration Guide
+
+**💡 Quick Start:** See complete examples in the `examples/` folder!
 
 ### Step 1: Copy Library Files
 
@@ -56,10 +92,13 @@ your_project/
 ├── embed_mcp/                 # EmbedMCP library (copied)
 │   ├── embed_mcp.h           # Main API header
 │   ├── embed_mcp.c           # Main API implementation
+│   ├── Makefile.inc          # Makefile configuration
+│   ├── application/          # Session management
 │   ├── cjson/                # JSON dependency
+│   ├── hal/                  # Hardware abstraction layer
 │   ├── protocol/             # MCP protocol implementation
-│   ├── transport/            # HTTP/STDIO transport
 │   ├── tools/                # Tool system
+│   ├── transport/            # HTTP/STDIO transport
 │   └── utils/                # Utilities
 └── Makefile
 ```
@@ -116,65 +155,19 @@ int main() {
 
 ### Step 3: Compile Your Project
 
-#### Option 1: Simple Compilation (All Source Files)
-
-```bash
-# Compile all source files together
-gcc main.c \
-    embed_mcp/embed_mcp.c \
-    embed_mcp/cjson/cJSON.c \
-    embed_mcp/protocol/*.c \
-    embed_mcp/transport/*.c \
-    embed_mcp/tools/*.c \
-    embed_mcp/utils/*.c \
-    -I embed_mcp \
-    -o my_app
-```
-
-#### Option 2: Create Static Library First
-
-```bash
-# Create object files
-gcc -c embed_mcp/embed_mcp.c -I embed_mcp -o embed_mcp.o
-gcc -c embed_mcp/cjson/cJSON.c -I embed_mcp -o cJSON.o
-gcc -c embed_mcp/protocol/*.c -I embed_mcp
-gcc -c embed_mcp/transport/*.c -I embed_mcp
-gcc -c embed_mcp/tools/*.c -I embed_mcp
-gcc -c embed_mcp/utils/*.c -I embed_mcp
-
-# Create static library
-ar rcs libembed_mcp.a *.o
-
-# Compile your application
-gcc main.c libembed_mcp.a -I embed_mcp -o my_app
-```
-
-#### Option 3: Using Makefile
-
-Create a simple Makefile:
-
+**Method 1: Using provided Makefile configuration**
 ```makefile
-CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -I embed_mcp
-SRCDIR = embed_mcp
-SOURCES = $(wildcard $(SRCDIR)/*.c $(SRCDIR)/*/*.c)
-OBJECTS = $(SOURCES:.c=.o)
+# Include in your Makefile
+include embed_mcp/Makefile.inc
 
-my_app: main.c $(OBJECTS)
-	$(CC) $(CFLAGS) $^ -o $@
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-clean:
-	rm -f $(OBJECTS) my_app
-
-.PHONY: clean
+my_app: main.c $(EMBED_MCP_SOURCES)
+	$(CC) $(EMBED_MCP_INCLUDES) main.c $(EMBED_MCP_SOURCES) $(EMBED_MCP_LIBS) -o my_app
 ```
 
-Then simply run:
+**Method 2: Direct compilation**
 ```bash
-make
+gcc main.c embed_mcp/*.c embed_mcp/*/*.c embed_mcp/cjson/*.c \
+    -Iembed_mcp -lpthread -lm -o my_app
 ```
 
 ## Library Files Overview
@@ -189,6 +182,12 @@ The `embed_mcp/` folder contains all the files needed to integrate EmbedMCP into
   - `cJSON.c` - JSON parser implementation
 
 ### Internal Implementation
+- **`hal/`** - Hardware abstraction layer
+  - `platform_hal.h` - HAL interface definitions
+  - `hal_common.h/.c` - Common HAL utilities
+  - `linux_hal.c` - Linux platform implementation
+  - `freertos_hal.c` - FreeRTOS platform implementation
+
 - **`protocol/`** - MCP protocol implementation
   - `mcp_protocol.h/.c` - Core protocol handling
   - `message.h/.c` - Message parsing and formatting
@@ -199,21 +198,18 @@ The `embed_mcp/` folder contains all the files needed to integrate EmbedMCP into
   - `transport_interface.h` - Transport abstraction
   - `http_transport.h/.c` - HTTP server implementation
   - `stdio_transport.h/.c` - STDIO transport for MCP clients
-  - `sse_transport.h` - Server-Sent Events support
+  - `transport.c` - Transport layer coordination
 
 - **`tools/`** - Tool system
   - `tool_interface.h/.c` - Tool interface and execution
   - `tool_registry.h/.c` - Tool registration and management
+  - `builtin_tools.h/.c` - Built-in tools (math, text, etc.)
 
-- **`application/`** - Multi-client support
-  - `client_manager.h` - Multiple client connection management
-  - `session_manager.h` - Session isolation and management
-  - `request_router.h` - Request routing to correct sessions
-  - `mcp_server.h` - High-level server application layer
+- **`application/`** - Session management
+  - `session_manager.h/.c` - Session isolation and management
 
 - **`utils/`** - Utilities
   - `logging.h/.c` - Logging system
-  - `memory.h/.c` - Memory management utilities
 
 ### What You Need to Know
 
@@ -268,35 +264,11 @@ typedef struct {
 } mcp_param_desc_t;
 ```
 
-### Parameter Accessor (`mcp_param_accessor_t`)
 
-The parameter accessor provides type-safe access to tool parameters:
-
-```c
-struct mcp_param_accessor {
-    // Type-safe getters for basic types
-    int64_t (*get_int)(mcp_param_accessor_t* self, const char* name);
-    double (*get_double)(mcp_param_accessor_t* self, const char* name);
-    const char* (*get_string)(mcp_param_accessor_t* self, const char* name);
-    int (*get_bool)(mcp_param_accessor_t* self, const char* name);
-
-    // Array getters for common MCP patterns
-    double* (*get_double_array)(mcp_param_accessor_t* self, const char* name, size_t* count);
-    char** (*get_string_array)(mcp_param_accessor_t* self, const char* name, size_t* count);
-    int64_t* (*get_int_array)(mcp_param_accessor_t* self, const char* name, size_t* count);
-
-    // Utility functions
-    int (*has_param)(mcp_param_accessor_t* self, const char* name);
-    size_t (*get_param_count)(mcp_param_accessor_t* self);
-
-    // For rare complex cases: direct JSON access
-    const cJSON* (*get_json)(mcp_param_accessor_t* self, const char* name);
-};
-```
 
 ## API Reference
 
-### Core Functions (Only 6 functions!)
+### Core Functions
 
 #### Server Management
 
@@ -395,6 +367,8 @@ typedef enum {
 ```
 
 ## Complete Examples
+
+**📁 Full source code available in the `examples/` directory!**
 
 ### 1. Basic Math Tool
 
@@ -585,29 +559,12 @@ The example server includes three demo tools (registered using `embed_mcp_add_to
 
 ### Test with MCP Inspector
 
-1. Install MCP Inspector: `npm install -g @modelcontextprotocol/inspector`
+1. Open MCP Inspector: Visit https://inspector.mcp.dev
 2. Run your server: `./bin/mcp_server -t http -p 8080`
-3. Open MCP Inspector: `mcp-inspector`
+3. Connect in MCP Inspector
 4. Connect to: `http://localhost:8080/mcp`
 
-### Test with curl
 
-```bash
-# List available tools
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-
-# Call the add tool
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add","arguments":{"a":10,"b":5}}}'
-
-# Call the weather tool
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"weather","arguments":{"city":"济南"}}}'
-```
 
 ## Integration Guide
 
@@ -634,15 +591,7 @@ The library handles concurrent requests safely. Your tool functions should be st
 - **Return Values:** Your functions should return malloc'd memory for strings and complex types
 - **Simple Types:** Return by value (double, int) or malloc'd pointer
 
-### Error Handling
-Always check return values and use `embed_mcp_get_error()` for detailed error information:
 
-```c
-if (embed_mcp_add_pure_function(...) != 0) {
-    printf("Error: %s\n", embed_mcp_get_error());
-    // Handle error appropriately
-}
-```
 
 ### Transport Types
 - **HTTP Transport:** Best for web integration, supports multiple concurrent clients
@@ -656,29 +605,16 @@ if (embed_mcp_add_pure_function(...) != 0) {
 ### Memory Management
 
 - **Return values:** Your pure functions should return malloc'd memory
-- **Parameters:** Parameter accessor handles memory automatically
+- **Parameters:** Automatically managed by the library
 - **Strings:** String returns are freed by the library after sending response
-- **Arrays:** Array parameters are managed by the library
 
-### Error Handling
 
-Always check return values and use `embed_mcp_get_error()` for diagnostics:
-
-```c
-if (embed_mcp_add_pure_function(...) != 0) {
-    printf("Error: %s\n", embed_mcp_get_error());
-    // Handle error
-}
-```
 
 ## Roadmap
 
 - ✅ **v1.0** - Tool system, MCP Inspector compatible, production ready
 - ✅ **v1.1** - Multi-session support, concurrent connections, session management
-- 🚧 **v1.2** - RTOS/Embedded Linux platform abstraction layer (HAL)
-- 🚧 **v1.3** - Resource system (file access, data sources)
-- 🚧 **v1.4** - Prompt system (templates, completion)
-- 🚧 **v2.0** - Advanced features (logging, metrics, auth)
+- ✅ **v1.2** - HAL architecture, cross-platform support, code reuse optimization
 
 ## Contributing
 
