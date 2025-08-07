@@ -1,4 +1,4 @@
-#include "embed_mcp/embed_mcp.h"
+#include "embed_mcp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,6 +79,34 @@ int calculate_score(int base_points, char grade, double multiplier) {
     return final_score;
 }
 
+// 树莓派特定的示例函数
+char* get_pi_info(void) {
+    printf("[DEBUG] Getting Raspberry Pi system information\n");
+
+    // 简单的系统信息收集
+    char* info = malloc(512);
+    if (!info) return strdup("Error: Memory allocation failed");
+
+    snprintf(info, 512,
+        "Raspberry Pi System Info:\n"
+        "- Architecture: "
+#ifdef __arm__
+        "ARM 32-bit"
+#elif defined(__aarch64__)
+        "ARM 64-bit"
+#else
+        "Unknown"
+#endif
+        "\n"
+        "- EmbedMCP Version: 1.0.0\n"
+        "- Transport: HTTP (mongoose)\n"
+        "- Status: Running\n"
+        "- Available Tools: add, weather, calculate_score, pi_info"
+    );
+
+    return info;
+}
+
 
 
 
@@ -87,21 +115,25 @@ void print_usage(const char *program_name) {
     printf("Usage: %s [OPTIONS]\n", program_name);
     printf("Options:\n");
     printf("  -t, --transport TYPE    Transport type (stdio|http) [default: stdio]\n");
-    printf("  -p, --port PORT         HTTP port [default: 8080]\n");
+    printf("  -p, --port PORT         HTTP port [default: 9943]\n");
     printf("  -b, --bind HOST         HTTP bind address [default: 0.0.0.0]\n");
-    printf("  -e, --endpoint PATH     HTTP endpoint path [default: /mcp] (Note: currently fixed to /mcp)\n");
+    printf("  -e, --endpoint PATH     HTTP endpoint path [default: /mcp]\n");
     printf("  -d, --debug             Enable debug logging\n");
     printf("  -h, --help              Show this help message\n");
     printf("\nExamples:\n");
     printf("  %s                      # STDIO transport\n", program_name);
-    printf("  %s -t http -p 9943      # HTTP on port 9943\n", program_name);
-    printf("  %s -t http -e /api/mcp  # HTTP with custom endpoint (planned feature)\n", program_name);
+    printf("  %s -t http              # HTTP on default port 9943\n", program_name);
+    printf("  %s -t http -p 8080      # HTTP on port 8080\n", program_name);
+    printf("  %s -t http -b 192.168.1.100  # HTTP bind to specific IP\n", program_name);
+    printf("\nRaspberry Pi Examples:\n");
+    printf("  %s -t http -p 9943 -d   # HTTP with debug on Pi\n", program_name);
+    printf("  %s -t http -b $(hostname -I | cut -d' ' -f1) # Bind to Pi's IP\n", program_name);
 }
 
 int main(int argc, char *argv[]) {
     // Parse command line arguments
     const char *transport_type = "stdio";
-    int port = 8080;
+    int port = 9943;  // 默认使用 MCP 标准端口
     const char *bind_address = "0.0.0.0";
     const char *endpoint_path = "/mcp";
     int debug = 0;
@@ -133,9 +165,37 @@ int main(int argc, char *argv[]) {
         }
     }
     
+    // 显示系统信息 (对树莓派有用)
+    printf("=== EmbedMCP Server ===\n");
+    printf("Platform: %s\n",
+#ifdef __arm__
+           "ARM (Raspberry Pi)"
+#elif defined(__aarch64__)
+           "ARM64 (Raspberry Pi 64-bit)"
+#elif defined(__x86_64__)
+           "x86_64 (Linux/Mac)"
+#else
+           "Unknown"
+#endif
+    );
+
+    // 如果是 HTTP 模式，显示网络信息
+    if (strcmp(transport_type, "http") == 0) {
+        printf("Network Interface: %s:%d\n", bind_address, port);
+        printf("Endpoint: %s\n", endpoint_path);
+
+        // 尝试获取本机 IP (对树莓派很有用)
+        if (strcmp(bind_address, "0.0.0.0") == 0) {
+            printf("Note: Server will bind to all interfaces (0.0.0.0)\n");
+            printf("      Access via: http://<your-pi-ip>:%d%s\n", port, endpoint_path);
+            printf("      Find Pi IP with: hostname -I\n");
+        }
+    }
+    printf("\n");
+
     // Create server configuration
     embed_mcp_config_t config = {
-        .name = "EmbedMCP-Example",
+        .name = "EmbedMCP-RaspberryPi",
         .version = "1.0.0",
         .host = bind_address,
         .port = port,
@@ -143,8 +203,8 @@ int main(int argc, char *argv[]) {
         .max_tools = 100,
         .debug = debug,
 
-        // Multi-session configuration
-        .max_connections = 5,       // Allow up to 5 concurrent connections
+        // 树莓派优化的连接配置
+        .max_connections = 3,       // 树莓派资源有限，减少并发连接
         .session_timeout = 1800,    // 30 minutes session timeout
         .enable_sessions = 1,       // Enable session management
         .auto_cleanup = 1           // Auto cleanup expired sessions
@@ -212,6 +272,15 @@ int main(int argc, char *argv[]) {
         printf("✅ Registered calculate_score(int, char, double) -> int\n");
     }
 
+    // 树莓派特定工具
+    if (embed_mcp_add_tool(server, "pi_info", "Get Raspberry Pi system information",
+                                  NULL, NULL, 0,  // 无参数
+                                  MCP_RETURN_STRING, get_pi_info) != 0) {
+        printf("Failed to register 'pi_info' function: %s\n", embed_mcp_get_error());
+    } else {
+        printf("✅ Registered pi_info() -> string (Raspberry Pi specific)\n");
+    }
+
 
     
     // Run server
@@ -221,8 +290,15 @@ int main(int argc, char *argv[]) {
         printf("\nExample tools available:\n");
         printf("  • add(a, b) - Add two numbers (demonstrates basic math)\n");
         printf("  • sum_array(numbers[]) - Sum array of numbers (demonstrates array handling)\n");
-        printf("  • weather(city) - Get weather info (demonstrates string processing, supports: Jinan/济南)\n");
-        printf("\nTry these in MCP Inspector or with curl!\n");
+        printf("  • weather(city) - Get weather info (supports: Jinan/济南)\n");
+        printf("  • calculate_score(base, grade, multiplier) - Calculate score with grade bonus\n");
+        printf("  • pi_info() - Get Raspberry Pi system information\n");
+        printf("\nTry these in MCP Inspector, Dify, or with curl!\n");
+        printf("Example curl test:\n");
+        printf("  curl -X POST http://%s:%d%s \\\n",
+               strcmp(bind_address, "0.0.0.0") == 0 ? "localhost" : bind_address, port, endpoint_path);
+        printf("       -H 'Content-Type: application/json' \\\n");
+        printf("       -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}'\n");
     }
     
     int result;

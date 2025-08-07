@@ -1,7 +1,6 @@
 #include "transport/transport_interface.h"
 #include "transport/stdio_transport.h"
 #include "transport/http_transport.h"
-#include "transport/sse_transport.h"
 #include "utils/logging.h"
 #include <stdlib.h>
 #include <string.h>
@@ -30,11 +29,6 @@ mcp_transport_t *mcp_transport_create(mcp_transport_type_t type) {
         case MCP_TRANSPORT_HTTP:
             transport->interface = &mcp_http_transport_interface;
             break;
-        case MCP_TRANSPORT_SSE:
-            // SSE transport not yet implemented
-            fprintf(stderr, "SSE transport not yet implemented\n");
-            free(transport);
-            return NULL;
         default:
             free(transport);
             return NULL;
@@ -83,12 +77,7 @@ mcp_transport_t *mcp_transport_create_http(int port, const char *bind_address) {
     return transport;
 }
 
-mcp_transport_t *mcp_transport_create_sse(int port, const char *bind_address) {
-    (void)port;
-    (void)bind_address;
-    fprintf(stderr, "SSE transport not yet implemented\n");
-    return NULL;
-}
+
 
 // Transport lifecycle
 int mcp_transport_init(mcp_transport_t *transport, const mcp_transport_config_t *config) {
@@ -235,8 +224,6 @@ mcp_transport_config_t *mcp_transport_config_create_default(mcp_transport_type_t
             return mcp_transport_config_create_stdio();
         case MCP_TRANSPORT_HTTP:
             return mcp_transport_config_create_http(8080, "0.0.0.0");
-        case MCP_TRANSPORT_SSE:
-            return mcp_transport_config_create_sse(8080, "0.0.0.0");
         default:
             return NULL;
     }
@@ -273,23 +260,7 @@ mcp_transport_config_t *mcp_transport_config_create_http(int port, const char *b
     return config;
 }
 
-mcp_transport_config_t *mcp_transport_config_create_sse(int port, const char *bind_address) {
-    mcp_transport_config_t *config = calloc(1, sizeof(mcp_transport_config_t));
-    if (!config) return NULL;
-    
-    config->type = MCP_TRANSPORT_SSE;
-    config->enable_logging = true;
-    config->max_message_size = 1024 * 1024; // 1MB
-    config->max_connections = 100;
-    config->connection_timeout = 60; // 60 seconds
-    
-    config->config.sse.port = port;
-    config->config.sse.bind_address = bind_address ? strdup(bind_address) : strdup("0.0.0.0");
-    config->config.sse.keepalive_interval = 30; // 30 seconds
-    config->config.sse.max_clients = 100;
-    
-    return config;
-}
+
 
 void mcp_transport_config_destroy(mcp_transport_config_t *config) {
     if (!config) return;
@@ -297,9 +268,6 @@ void mcp_transport_config_destroy(mcp_transport_config_t *config) {
     switch (config->type) {
         case MCP_TRANSPORT_HTTP:
             free(config->config.http.bind_address);
-            break;
-        case MCP_TRANSPORT_SSE:
-            free(config->config.sse.bind_address);
             break;
         default:
             break;
@@ -313,7 +281,6 @@ const char *mcp_transport_type_to_string(mcp_transport_type_t type) {
     switch (type) {
         case MCP_TRANSPORT_STDIO: return "STDIO";
         case MCP_TRANSPORT_HTTP: return "HTTP";
-        case MCP_TRANSPORT_SSE: return "SSE";
         default: return "UNKNOWN";
     }
 }

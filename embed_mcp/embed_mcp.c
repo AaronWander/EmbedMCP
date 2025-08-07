@@ -267,7 +267,12 @@ static void on_message_received(const char *message, size_t length,
     }
     
     server->current_connection = connection;
-    mcp_protocol_handle_message(server->protocol, message);
+    int result = mcp_protocol_handle_message(server->protocol, message);
+    // Keep connection available until after message handling is complete
+    // Don't set to NULL immediately as response sending might be synchronous
+    if (result != 0) {
+        mcp_log_error("Protocol message handling failed: %d", result);
+    }
     server->current_connection = NULL;
 }
 
@@ -690,7 +695,13 @@ int embed_mcp_run(embed_mcp_server_t *server, embed_mcp_transport_t transport) {
 
     // Main loop
     while (g_running && server->running) {
-        usleep(100000); // 100ms
+        // Poll transport for HTTP requests
+        if (server->transport && transport == EMBED_MCP_TRANSPORT_HTTP) {
+            extern int mcp_http_transport_poll(mcp_transport_t *transport);
+            mcp_http_transport_poll(server->transport);
+        }
+
+        usleep(10000); // 10ms
     }
 
     // Stop transport

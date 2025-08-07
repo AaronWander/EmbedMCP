@@ -14,6 +14,10 @@ EMBED_MCP_SOURCES = \
 	$(wildcard $(EMBED_MCP_DIR)/tools/*.c) \
 	$(wildcard $(EMBED_MCP_DIR)/utils/*.c) \
 	$(wildcard $(EMBED_MCP_DIR)/hal/*.c) \
+	$(wildcard $(EMBED_MCP_DIR)/platform/*.c) \
+	$(wildcard $(EMBED_MCP_DIR)/platform/custom/*.c) \
+	$(wildcard $(EMBED_MCP_DIR)/platform/linux/*.c) \
+	$(wildcard $(EMBED_MCP_DIR)/platform/freertos/*.c) \
 	$(EMBED_MCP_DIR)/cjson/cJSON.c
 
 # EmbedMCP include directories

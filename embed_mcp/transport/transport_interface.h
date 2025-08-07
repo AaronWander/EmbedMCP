@@ -8,8 +8,7 @@
 // Transport types
 typedef enum {
     MCP_TRANSPORT_STDIO,
-    MCP_TRANSPORT_HTTP,
-    MCP_TRANSPORT_SSE
+    MCP_TRANSPORT_HTTP
 } mcp_transport_type_t;
 
 // Transport states
@@ -56,13 +55,6 @@ typedef struct {
             bool enable_cors;
             size_t max_request_size;
         } http;
-
-        struct {
-            int port;
-            char *bind_address;
-            time_t keepalive_interval;
-            size_t max_clients;
-        } sse;
     } config;
 } mcp_transport_config_t;
 
@@ -137,7 +129,6 @@ mcp_transport_t *mcp_transport_create(mcp_transport_type_t type);
 mcp_transport_t *mcp_transport_create_stdio(void);
 mcp_transport_t *mcp_transport_create_http(int port, const char *bind_address);
 mcp_transport_t *mcp_transport_create_http_with_path(int port, const char *bind_address, const char *endpoint_path);
-mcp_transport_t *mcp_transport_create_sse(int port, const char *bind_address);
 
 // Transport lifecycle
 int mcp_transport_init(mcp_transport_t *transport, const mcp_transport_config_t *config);
@@ -165,7 +156,6 @@ int mcp_connection_set_session_id(mcp_connection_t *connection, const char *sess
 mcp_transport_config_t *mcp_transport_config_create_default(mcp_transport_type_t type);
 mcp_transport_config_t *mcp_transport_config_create_stdio(void);
 mcp_transport_config_t *mcp_transport_config_create_http(int port, const char *bind_address);
-mcp_transport_config_t *mcp_transport_config_create_sse(int port, const char *bind_address);
 void mcp_transport_config_destroy(mcp_transport_config_t *config);
 
 // Utility functions

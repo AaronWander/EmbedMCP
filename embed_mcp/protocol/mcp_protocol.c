@@ -362,15 +362,20 @@ cJSON *mcp_protocol_handle_initialize(mcp_protocol_t *protocol, const mcp_reques
     // Server info
     cJSON *server_info = cJSON_CreateObject();
     cJSON_AddStringToObject(server_info, "name", "EmbedMCP");
-    cJSON_AddStringToObject(server_info, "version", "1.0.0");
+    cJSON_AddStringToObject(server_info, "version", "1.12.3");
     cJSON_AddItemToObject(result, "serverInfo", server_info);
 
-    // Server capabilities - direct creation without complex logic
+    // Server capabilities - match successful format exactly (like AMap)
     cJSON *capabilities = cJSON_CreateObject();
+
+    // Add experimental first (empty object)
+    cJSON_AddItemToObject(capabilities, "experimental", cJSON_CreateObject());
+
+    // Add tools capability
     cJSON *tools = cJSON_CreateObject();
-    cJSON_AddBoolToObject(tools, "listChanged", true);
+    cJSON_AddBoolToObject(tools, "listChanged", false);  // Match AMap format
     cJSON_AddItemToObject(capabilities, "tools", tools);
-    cJSON_AddItemToObject(capabilities, "logging", cJSON_CreateObject());
+
     cJSON_AddItemToObject(result, "capabilities", capabilities);
 
     protocol->initialized = true;
