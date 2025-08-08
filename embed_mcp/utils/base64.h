@@ -1,6 +1,7 @@
 /*
- * Base64 encoding/decoding (RFC1341)
- * Single header library
+ * Base64 encoding/decoding (RFC 4648)
+ * Simple and reliable implementation
+ * Based on public domain algorithms
  */
 
 #ifndef BASE64_H

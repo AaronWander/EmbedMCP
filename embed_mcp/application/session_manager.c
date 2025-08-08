@@ -13,11 +13,25 @@ char *mcp_session_generate_id(void) {
     const mcp_platform_hal_t *hal = mcp_platform_get_hal();
     if (!hal) return NULL;
 
-    char *session_id = hal->memory.alloc(37); // 36字符UUID + null terminator
+    char *session_id = hal->memory.alloc(UUID4_STR_BUFFER_SIZE); // UUID字符串 + null terminator
     if (!session_id) return NULL;
 
     // 使用UUID4库生成标准UUID
-    uuid4_generate_string(session_id);
+    static UUID4_STATE_T state = 0;
+    static int initialized = 0;
+
+    if (!initialized) {
+        uuid4_seed(&state);
+        initialized = 1;
+    }
+
+    UUID4_T uuid;
+    uuid4_gen(&state, &uuid);
+
+    if (!uuid4_to_s(uuid, session_id, UUID4_STR_BUFFER_SIZE)) {
+        hal->memory.free(session_id);
+        return NULL;
+    }
 
     return session_id;
 }

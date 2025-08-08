@@ -76,8 +76,21 @@ cJSON *mcp_builtin_tool_uuid_execute(const cJSON *parameters, void *user_data) {
     (void)parameters;
     (void)user_data;
 
-    char uuid_str[37]; // 36字符 + null terminator
-    uuid4_generate_string(uuid_str);
+    static UUID4_STATE_T state = 0;
+    static int initialized = 0;
+
+    if (!initialized) {
+        uuid4_seed(&state);
+        initialized = 1;
+    }
+
+    UUID4_T uuid;
+    uuid4_gen(&state, &uuid);
+
+    char uuid_str[UUID4_STR_BUFFER_SIZE];
+    if (!uuid4_to_s(uuid, uuid_str, UUID4_STR_BUFFER_SIZE)) {
+        return cJSON_CreateString("Error: UUID generation failed");
+    }
 
     return cJSON_CreateString(uuid_str);
 }

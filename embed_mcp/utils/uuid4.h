@@ -1,86 +1,74 @@
-/*
- * UUID4 (Random UUID) Generator
- * Single header library
- */
+// (‑●‑●)> dual licensed under the WTFPL v2 and MIT licenses
+//   without any warranty.
+//   by Gregory Pakosz (@gpakosz)
+// https://github.com/gpakosz/uuid4
 
 #ifndef UUID4_H
 #define UUID4_H
 
-#include <stdint.h>
-
 #ifdef __cplusplus
+#include <cstdint>
 extern "C" {
+#else
+#include <stdint.h>
+#include <stdbool.h>
 #endif
 
-typedef struct {
-    uint8_t bytes[16];
-} uuid4_t;
+#ifndef UUID4_FUNCSPEC
+  #define UUID4_FUNCSPEC
+#endif
+#ifndef UUID4_PREFIX
+  #define UUID4_PREFIX(x) uuid4_##x
+#endif
 
-/* Generate a random UUID4 */
-void uuid4_generate(uuid4_t *uuid);
+#ifndef UUID4_STR_BUFFER_SIZE
+  #define UUID4_STR_BUFFER_SIZE (int)sizeof("xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx") // y is either 8, 9, a or b
+#endif
 
-/* Convert UUID to string (36 chars + null terminator) */
-void uuid4_to_string(const uuid4_t *uuid, char *str);
+typedef uint64_t UUID4_PREFIX(state_t);
+#define UUID4_STATE_T UUID4_PREFIX(state_t)
 
-/* Generate UUID4 string directly */
-void uuid4_generate_string(char *str);
+typedef union
+{
+  uint8_t bytes[16];
+  uint32_t dwords[4];
+  uint64_t qwords[2];
+} UUID4_PREFIX(t);
+#define UUID4_T UUID4_PREFIX(t)
+
+/**
+ * Seeds the state of the PRNG used to generate version 4 UUIDs.
+ *
+ * @param a pointer to a variable holding the state.
+ *
+ * @return `true` on success, otherwise `false`.
+ */
+UUID4_FUNCSPEC
+void UUID4_PREFIX(seed)(UUID4_STATE_T* seed);
+
+/**
+ * Generates a version 4 UUID, see https://tools.ietf.org/html/rfc4122.
+ *
+ * @param state the state of the PRNG used to generate version 4 UUIDs.
+ * @param out the recipient for the UUID.
+ */
+UUID4_FUNCSPEC
+void UUID4_PREFIX(gen)(UUID4_STATE_T* state, UUID4_T* out);
+
+/**
+ * Converts a UUID to a a `NUL` terminated string.
+ *
+ * @param out destination buffer
+ * @param capacity destination buffer capacity, must be greater or equal to
+ *   `UUID4_STR_BUFFER_SIZE`.
+ *
+ * @return `true` on success, otherwise `false`.
+ */
+UUID4_FUNCSPEC
+bool UUID4_PREFIX(to_s)(const UUID4_T uuid, char* out, int capacity);
 
 #ifdef __cplusplus
 }
 #endif
 
-#ifdef UUID4_IMPLEMENTATION
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <unistd.h>
-
-static int uuid4_initialized = 0;
-
-static void uuid4_init(void) {
-    if (!uuid4_initialized) {
-        srand((unsigned int)(time(NULL) ^ getpid()));
-        uuid4_initialized = 1;
-    }
-}
-
-static uint32_t uuid4_random(void) {
-    return ((uint32_t)rand() << 16) | (uint32_t)rand();
-}
-
-void uuid4_generate(uuid4_t *uuid) {
-    uuid4_init();
-    
-    /* Generate 16 random bytes */
-    for (int i = 0; i < 16; i += 4) {
-        uint32_t r = uuid4_random();
-        uuid->bytes[i]     = (r >> 24) & 0xFF;
-        uuid->bytes[i + 1] = (r >> 16) & 0xFF;
-        uuid->bytes[i + 2] = (r >> 8) & 0xFF;
-        uuid->bytes[i + 3] = r & 0xFF;
-    }
-    
-    /* Set version (4) and variant bits */
-    uuid->bytes[6] = (uuid->bytes[6] & 0x0F) | 0x40; /* Version 4 */
-    uuid->bytes[8] = (uuid->bytes[8] & 0x3F) | 0x80; /* Variant 10 */
-}
-
-void uuid4_to_string(const uuid4_t *uuid, char *str) {
-    sprintf(str, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-        uuid->bytes[0], uuid->bytes[1], uuid->bytes[2], uuid->bytes[3],
-        uuid->bytes[4], uuid->bytes[5],
-        uuid->bytes[6], uuid->bytes[7],
-        uuid->bytes[8], uuid->bytes[9],
-        uuid->bytes[10], uuid->bytes[11], uuid->bytes[12], uuid->bytes[13], uuid->bytes[14], uuid->bytes[15]);
-}
-
-void uuid4_generate_string(char *str) {
-    uuid4_t uuid;
-    uuid4_generate(&uuid);
-    uuid4_to_string(&uuid, str);
-}
-
-#endif /* UUID4_IMPLEMENTATION */
-
-#endif /* UUID4_H */
+#endif // #ifndef UUID4_H
