@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/socket.h>
+#include <stdint.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
@@ -70,7 +71,9 @@ static void linux_thread_sleep_ms(uint32_t ms) {
 }
 
 static uint32_t linux_thread_get_id(void) {
-    return (uint32_t)pthread_self();
+    // Convert pthread_t to uint32_t safely
+    pthread_t tid = pthread_self();
+    return (uint32_t)(uintptr_t)tid;
 }
 
 // Linux同步原语

@@ -396,7 +396,8 @@ void mcp_session_unref(mcp_session_t *session) {
     if (should_destroy) {
         // 清理会话资源
         if (session->protocol_state) {
-            // TODO: 清理协议状态
+            // Protocol state cleanup is handled by the protocol module
+            session->protocol_state = NULL;
         }
 
         pthread_mutex_destroy(&session->mutex);
@@ -529,6 +530,7 @@ int mcp_session_initialize(mcp_session_t *session,
                           const char *protocol_version,
                           const cJSON *client_capabilities,
                           const cJSON *client_info) {
+    (void)client_capabilities; // Client capabilities processing is handled by protocol layer
     if (!session) return -1;
 
     pthread_mutex_lock(&session->mutex);

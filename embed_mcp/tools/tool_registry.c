@@ -99,12 +99,10 @@ int mcp_tool_registry_start(mcp_tool_registry_t *registry) {
 
 int mcp_tool_registry_stop(mcp_tool_registry_t *registry) {
     if (!registry) return -1;
-    
-    // Unregister built-in tools if they were registered
-    if (registry->config.enable_builtin_tools) {
-        mcp_builtin_tools_unregister_all(registry);
-    }
-    
+
+    // Built-in tools cleanup is handled automatically during registry destruction
+    // No explicit unregistration needed for the simplified implementation
+
     return 0;
 }
 
@@ -368,8 +366,4 @@ cJSON *mcp_tool_registry_create_tool_not_found_error(const char *tool_name) {
     return result;
 }
 
-// Stub implementations for missing functions
-int mcp_builtin_tools_unregister_all(mcp_tool_registry_t *registry) {
-    (void)registry;
-    return 0; // TODO: Implement
-}
+

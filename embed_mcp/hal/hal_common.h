@@ -2,6 +2,7 @@
 #define HAL_COMMON_H
 
 #include "platform_hal.h"
+#include "utils/error_codes.h"
 #include <stddef.h>
 #include <stdbool.h>
 
@@ -9,22 +10,12 @@
 
 // 内存管理辅助函数
 char* hal_strdup(const mcp_platform_hal_t *hal, const char *str);
-void* hal_calloc(const mcp_platform_hal_t *hal, size_t count, size_t size);
-void* hal_realloc(const mcp_platform_hal_t *hal, void *ptr, size_t new_size);
 void hal_free(const mcp_platform_hal_t *hal, void *ptr);
 
-// 错误处理辅助函数
-typedef enum {
-    HAL_OK = 0,
-    HAL_ERROR_NULL_POINTER = -1,
-    HAL_ERROR_MEMORY_ALLOCATION = -2,
-    HAL_ERROR_INVALID_PARAMETER = -3,
-    HAL_ERROR_PLATFORM_NOT_AVAILABLE = -4
-} hal_result_t;
-
-hal_result_t hal_safe_get(const mcp_platform_hal_t **hal_out);
-hal_result_t hal_safe_alloc(const mcp_platform_hal_t *hal, size_t size, void **ptr_out);
-hal_result_t hal_safe_strdup(const mcp_platform_hal_t *hal, const char *str, char **str_out);
+// 错误处理辅助函数 (使用统一错误码)
+mcp_result_t hal_safe_get(const mcp_platform_hal_t **hal_out);
+mcp_result_t hal_safe_alloc(const mcp_platform_hal_t *hal, size_t size, void **ptr_out);
+mcp_result_t hal_safe_strdup(const mcp_platform_hal_t *hal, const char *str, char **str_out);
 
 // 能力查询通用实现
 bool hal_has_capability_generic(const mcp_platform_capabilities_t *capabilities, const char* capability);
@@ -58,7 +49,7 @@ void hal_platform_cleanup_wrapper(platform_cleanup_func_t cleanup_func);
         hal_platform_cleanup_wrapper(cleanup_func); \
     }
 
-// 错误信息获取
-const char* hal_get_error_string(hal_result_t result);
+// 错误信息获取 (使用统一错误码)
+// 注意：现在使用 mcp_error_to_string() 替代 hal_get_error_string()
 
 #endif // HAL_COMMON_H

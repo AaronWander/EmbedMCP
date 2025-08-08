@@ -7,6 +7,7 @@
 #include "hal/platform_hal.h"
 #include "hal/hal_common.h"
 #include "utils/logging.h"
+#include "utils/error_codes.h"
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
@@ -316,17 +317,17 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config) {
     }
 
     const mcp_platform_hal_t *hal;
-    hal_result_t hal_result = hal_safe_get(&hal);
-    if (hal_result != HAL_OK) {
-        set_error(hal_get_error_string(hal_result));
+    mcp_result_t hal_result = hal_safe_get(&hal);
+    if (hal_result != MCP_OK) {
+        set_error(mcp_error_to_string(hal_result));
         return NULL;
     }
 
     // Use HAL memory allocation
     embed_mcp_server_t *server;
     hal_result = hal_safe_alloc(hal, sizeof(embed_mcp_server_t), (void**)&server);
-    if (hal_result != HAL_OK) {
-        set_error(hal_get_error_string(hal_result));
+    if (hal_result != MCP_OK) {
+        set_error(mcp_error_to_string(hal_result));
         return NULL;
     }
     memset(server, 0, sizeof(embed_mcp_server_t));
@@ -457,12 +458,7 @@ void embed_mcp_destroy(embed_mcp_server_t *server) {
 
 
 
-// Removed: Helper functions for old convenience APIs
-// create_math_tool_schema() and create_text_tool_schema() were used by
-// the removed embed_mcp_add_math_tool and embed_mcp_add_text_tool functions
 
-// Removed: embed_mcp_add_math_tool and embed_mcp_add_text_tool
-// These convenience functions were replaced by the unified pure function API
 
 /*
  * COMMENTED OUT: Universal Function Wrapper
@@ -564,6 +560,10 @@ static cJSON *tool_handler_wrapper(const cJSON *args, void *user_data) {
     return handler(args);
 }
 */
+
+
+
+
 
 /*
  * RESERVED FOR FUTURE USE: Complex parameter structures
@@ -1005,6 +1005,10 @@ static cJSON *universal_pure_wrapper(const cJSON *args, void *user_data) {
     return NULL;
 }
 */
+
+
+
+
 
 /*
  * COMMENTED OUT: Pure Function API Implementation

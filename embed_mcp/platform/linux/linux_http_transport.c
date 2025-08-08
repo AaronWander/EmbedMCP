@@ -218,6 +218,7 @@ static void mongoose_event_handler(struct mg_connection *c, int ev, void *ev_dat
 
 // 实现平台接口函数
 static int linux_init(const mcp_transport_config_t* config, void* user_data) {
+    (void)user_data; // Unused parameter
     mg_mgr_init(&mgr);
 
     // 保存配置信息

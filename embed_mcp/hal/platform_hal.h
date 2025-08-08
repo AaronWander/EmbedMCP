@@ -6,21 +6,10 @@
 #include <stdbool.h>
 
 // 平台类型检测
-#ifdef __linux__
-    #define MCP_PLATFORM_LINUX
-    #ifdef EMBEDDED_LINUX
-        #define MCP_PLATFORM_EMBEDDED_LINUX
-    #endif
-#elif defined(__APPLE__) || defined(__unix__) || defined(_POSIX_VERSION)
-    #define MCP_PLATFORM_LINUX  // 使用Linux HAL作为POSIX系统的默认实现
-#elif defined(FREERTOS)
+#if defined(FREERTOS)
     #define MCP_PLATFORM_FREERTOS
-#elif defined(CONFIG_ZEPHYR_KERNEL)
-    #define MCP_PLATFORM_ZEPHYR
-#elif defined(THREADX)
-    #define MCP_PLATFORM_THREADX
 #else
-    #define MCP_PLATFORM_LINUX  // 默认使用Linux HAL
+    #define MCP_PLATFORM_LINUX  // 默认使用Linux HAL (适用于Linux/macOS/POSIX系统)
 #endif
 
 // 平台能力描述
