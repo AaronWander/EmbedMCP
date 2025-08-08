@@ -1,6 +1,7 @@
 #include "../platform_http_interface.h"
 #include "../../utils/logging.h"
 #include "mongoose.h"
+#include "../../cjson/cJSON.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,59 +24,69 @@ static const char* mcp_initialize_response =
 static const char* mcp_tools_response =
 "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":{\"tools\":[{\"name\":\"add\",\"description\":\"Add two numbers together\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"number\",\"description\":\"First number\"},\"b\":{\"type\":\"number\",\"description\":\"Second number\"}},\"required\":[\"a\",\"b\"]}},{\"name\":\"weather\",\"description\":\"Get weather information for a city\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"description\":\"City name (supports Jinan/济南)\"}},\"required\":[\"city\"]}},{\"name\":\"calculate_score\",\"description\":\"Calculate a score based on parameters\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"base\":{\"type\":\"integer\",\"description\":\"Base score\"},\"grade\":{\"type\":\"string\",\"description\":\"Grade letter\"},\"multiplier\":{\"type\":\"number\",\"description\":\"Score multiplier\"}},\"required\":[\"base\",\"grade\",\"multiplier\"]}}]}}";
 
-// 解析 JSON-RPC 请求
+// 解析 JSON-RPC 请求 - 使用 cJSON
 static int parse_jsonrpc_request(const char* body, char* method, int* id, char* protocol_version) {
     // 初始化输出参数
     method[0] = '\0';
     *id = 0;
+    protocol_version[0] = '\0';
 
-    // 简化的 JSON 解析 - 提取 method 和 id
-    const char* method_start = strstr(body, "\"method\":");
-    const char* id_start = strstr(body, "\"id\":");
+    // 使用 cJSON 解析
+    cJSON *json = cJSON_Parse(body);
+    if (!json) {
+        mcp_log_error("Linux HTTP: Failed to parse JSON: %s", cJSON_GetErrorPtr());
+        return -1;
+    }
 
-    if (method_start) {
-        // 跳过 "method":
-        method_start += 9;
-        // 跳过空格和引号
-        while (*method_start == ' ' || *method_start == '\t') method_start++;
-        if (*method_start == '"') {
-            method_start++;
-            const char* method_end = strchr(method_start, '"');
-            if (method_end) {
-                size_t len = method_end - method_start;
-                if (len < 63) { // 确保不超出缓冲区
-                    strncpy(method, method_start, len);
-                    method[len] = '\0';
-                }
+    // 提取 method 字段
+    cJSON *method_obj = cJSON_GetObjectItem(json, "method");
+    if (method_obj && cJSON_IsString(method_obj)) {
+        const char *method_str = cJSON_GetStringValue(method_obj);
+        if (method_str) {
+            size_t len = strlen(method_str);
+            if (len < 63) { // 确保不超出缓冲区
+                strcpy(method, method_str);
+            } else {
+                mcp_log_warn("Linux HTTP: Method name too long, truncating");
+                strncpy(method, method_str, 62);
+                method[62] = '\0';
             }
         }
     }
 
-    if (id_start) {
-        // 跳过 "id":
-        id_start += 5;
-        while (*id_start == ' ' || *id_start == '\t') id_start++;
-        *id = atoi(id_start);
+    // 提取 id 字段
+    cJSON *id_obj = cJSON_GetObjectItem(json, "id");
+    if (id_obj) {
+        if (cJSON_IsNumber(id_obj)) {
+            *id = cJSON_GetNumberValue(id_obj);
+        } else if (cJSON_IsString(id_obj)) {
+            // 有些客户端可能发送字符串ID
+            const char *id_str = cJSON_GetStringValue(id_obj);
+            if (id_str) {
+                *id = atoi(id_str);
+            }
+        }
     }
 
-    // 提取协议版本 (如果有)
-    const char* version_start = strstr(body, "\"protocolVersion\":");
-    if (version_start) {
-        version_start += 18; // 跳过 "protocolVersion":
-        while (*version_start == ' ' || *version_start == '\t') version_start++;
-        if (*version_start == '"') {
-            version_start++;
-            const char* version_end = strchr(version_start, '"');
-            if (version_end) {
-                size_t len = version_end - version_start;
+    // 提取协议版本 (从 params.protocolVersion)
+    cJSON *params = cJSON_GetObjectItem(json, "params");
+    if (params && cJSON_IsObject(params)) {
+        cJSON *version_obj = cJSON_GetObjectItem(params, "protocolVersion");
+        if (version_obj && cJSON_IsString(version_obj)) {
+            const char *version_str = cJSON_GetStringValue(version_obj);
+            if (version_str) {
+                size_t len = strlen(version_str);
                 if (len < 31) { // 确保不超出缓冲区
-                    strncpy(protocol_version, version_start, len);
-                    protocol_version[len] = '\0';
+                    strcpy(protocol_version, version_str);
+                } else {
+                    strncpy(protocol_version, version_str, 30);
+                    protocol_version[30] = '\0';
                 }
             }
         }
     }
 
+    cJSON_Delete(json);
     return 0;
 }
 

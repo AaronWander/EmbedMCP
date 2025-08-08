@@ -6,42 +6,46 @@
 #include <time.h>
 #include <unistd.h>
 
-// 生成会话ID
-char *mcp_session_generate_id(void) {
-    static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+#include "utils/uuid4.h"
 
+// 生成会话ID - 使用UUID4
+char *mcp_session_generate_id(void) {
     const mcp_platform_hal_t *hal = mcp_platform_get_hal();
     if (!hal) return NULL;
 
-    char *session_id = hal->memory.alloc(33); // 32字符 + null terminator
+    char *session_id = hal->memory.alloc(37); // 36字符UUID + null terminator
     if (!session_id) return NULL;
-    
-    srand((unsigned int)time(NULL) + (unsigned int)getpid());
-    
-    for (int i = 0; i < 32; i++) {
-        session_id[i] = charset[rand() % (sizeof(charset) - 1)];
-    }
-    session_id[32] = '\0';
-    
+
+    // 使用UUID4库生成标准UUID
+    uuid4_generate_string(session_id);
+
     return session_id;
 }
 
-// 验证会话ID格式
+// 验证会话ID格式 - UUID4格式
 bool mcp_session_validate_id(const char *session_id) {
     if (!session_id) return false;
-    
+
     size_t len = strlen(session_id);
-    if (len != 32) return false;
-    
+    if (len != 36) return false; // UUID4格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+    // 检查UUID格式：8-4-4-4-12
+    if (session_id[8] != '-' || session_id[13] != '-' ||
+        session_id[18] != '-' || session_id[23] != '-') {
+        return false;
+    }
+
+    // 检查其他字符是否为十六进制
     for (size_t i = 0; i < len; i++) {
+        if (i == 8 || i == 13 || i == 18 || i == 23) continue; // 跳过连字符
         char c = session_id[i];
-        if (!((c >= 'a' && c <= 'z') || 
-              (c >= 'A' && c <= 'Z') || 
+        if (!((c >= 'a' && c <= 'f') ||
+              (c >= 'A' && c <= 'F') ||
               (c >= '0' && c <= '9'))) {
             return false;
         }
     }
-    
+
     return true;
 }
 
