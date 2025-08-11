@@ -376,8 +376,25 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config) {
         return NULL;
     }
 
-    // Create protocol with default config
-    server->protocol = mcp_protocol_create(NULL);
+    // Create protocol config with user settings
+    mcp_protocol_config_t *protocol_config = mcp_protocol_config_create_default();
+    if (protocol_config) {
+        // Set server info from user config
+        mcp_protocol_config_set_server_info(protocol_config, config->name, config->version);
+
+        // Set instructions from user config (optional)
+        if (config->instructions) {
+            mcp_protocol_config_set_instructions(protocol_config, config->instructions);
+        }
+    }
+
+    // Create protocol with user config
+    server->protocol = mcp_protocol_create(protocol_config);
+
+    // Clean up protocol config (it's copied internally)
+    if (protocol_config) {
+        mcp_protocol_config_destroy(protocol_config);
+    }
     
     if (!server->protocol) {
         embed_mcp_destroy(server);
@@ -460,177 +477,15 @@ void embed_mcp_destroy(embed_mcp_server_t *server) {
 
 
 
-/*
- * COMMENTED OUT: Universal Function Wrapper
- *
- * This wrapper was used by the commented embed_mcp_add_pure_function API.
- * Kept for reference but commented out to avoid unused function warnings.
- */
-/*
-// Universal function wrapper - converts universal functions to JSON responses
-static cJSON *universal_function_wrapper(const cJSON *args, void *user_data) {
-    typedef struct {
-        mcp_universal_func_t func;
-        mcp_return_type_t return_type;
-    } universal_func_data_t;
-
-    universal_func_data_t* func_data = (universal_func_data_t*)user_data;
-
-    // Create parameter accessor
-    param_accessor_data_t accessor_data = { .args = args };
-    mcp_param_accessor_t accessor = {
-        .get_int = param_get_int,
-        .get_double = param_get_double,
-        .get_string = param_get_string,
-        .get_bool = param_get_bool,
-        .get_double_array = param_get_double_array,
-        .get_string_array = param_get_string_array,
-        .get_int_array = param_get_int_array,
-        .has_param = param_has_param,
-        .get_param_count = param_get_param_count,
-        .get_json = param_get_json,
-        .data = &accessor_data
-    };
-
-    // Call the universal function
-    void* result = func_data->func(&accessor);
-
-    // Convert result to JSON based on return type
-    cJSON* json_result = cJSON_CreateObject();
-    if (!json_result) {
-        if (result) free(result);
-        return NULL;
-    }
-
-    switch (func_data->return_type) {
-        case MCP_RETURN_DOUBLE: {
-            if (result) {
-                double* double_result = (double*)result;
-                cJSON_AddNumberToObject(json_result, "content", *double_result);
-                free(result);
-            } else {
-                cJSON_AddNumberToObject(json_result, "content", 0.0);
-            }
-            break;
-        }
-        case MCP_RETURN_INT: {
-            if (result) {
-                int64_t* int_result = (int64_t*)result;
-                cJSON_AddNumberToObject(json_result, "content", (double)*int_result);
-                free(result);
-            } else {
-                cJSON_AddNumberToObject(json_result, "content", 0);
-            }
-            break;
-        }
-        case MCP_RETURN_STRING: {
-            if (result) {
-                char* string_result = (char*)result;
-                cJSON_AddStringToObject(json_result, "content", string_result);
-                free(result);
-            } else {
-                cJSON_AddStringToObject(json_result, "content", "");
-            }
-            break;
-        }
-        case MCP_RETURN_VOID:
-            cJSON_AddStringToObject(json_result, "content", "Operation completed successfully");
-            if (result) free(result);
-            break;
-        default:
-            cJSON_AddStringToObject(json_result, "content", "Unknown return type");
-            if (result) free(result);
-            break;
-    }
-
-    return json_result;
-}
-*/
-
-/*
- * COMMENTED OUT: Tool Handler Wrapper
- *
- * This wrapper was used by the commented embed_mcp_add_tool_with_schema API.
- * Kept for reference but commented out to avoid unused function warnings.
- */
-/*
-// Wrapper function to adapt our handler signature to the expected one (legacy)
-static cJSON *tool_handler_wrapper(const cJSON *args, void *user_data) {
-    embed_mcp_tool_handler_t handler = (embed_mcp_tool_handler_t)user_data;
-    return handler(args);
-}
-*/
 
 
 
 
 
-/*
- * RESERVED FOR FUTURE USE: Complex parameter structures
- *
- * This implementation is kept in code but commented out for future use.
- * Uncomment when we encounter complex nested parameter structures that
- * the pure function API cannot handle.
- */
-/*
-int embed_mcp_add_tool_with_schema(embed_mcp_server_t *server,
-                                   const char *name,
-                                   const char *description,
-                                   const cJSON *schema,
-                                   embed_mcp_tool_handler_t handler) {
-    if (!server || !name || !description || !handler) {
-        set_error("Invalid parameters");
-        return -1;
-    }
 
-    // Create default schema if none provided
-    cJSON *input_schema = NULL;
-    if (schema) {
-        input_schema = cJSON_Duplicate(schema, 1);
-    } else {
-        // Create a basic generic schema if no schema provided
-        input_schema = cJSON_CreateObject();
 
-        cJSON_AddStringToObject(input_schema, "$schema", "http://json-schema.org/draft-07/schema#");
-        cJSON_AddStringToObject(input_schema, "type", "object");
-        cJSON_AddStringToObject(input_schema, "title", "Tool Parameters");
-        cJSON_AddStringToObject(input_schema, "description", "Parameters for the tool");
 
-        // Empty properties object - allows any parameters
-        cJSON *properties = cJSON_CreateObject();
-        cJSON_AddItemToObject(input_schema, "properties", properties);
 
-        // No required fields
-        cJSON *required = cJSON_CreateArray();
-        cJSON_AddItemToObject(input_schema, "required", required);
-
-        cJSON_AddBoolToObject(input_schema, "additionalProperties", true);
-    }
-
-    // Create tool with schema
-    mcp_tool_t *tool = mcp_tool_create(name, name, description, input_schema,
-                                      tool_handler_wrapper, (void*)handler);
-
-    // Clean up schema
-    if (input_schema) {
-        cJSON_Delete(input_schema);
-    }
-
-    if (!tool) {
-        set_error("Failed to create tool");
-        return -1;
-    }
-
-    // Register tool
-    if (mcp_tool_registry_register_tool(server->tool_registry, tool) != 0) {
-        mcp_tool_destroy(tool);
-        set_error("Failed to register tool");
-        return -1;
-    }
-
-    return 0;
-}
-*/
 
 
 
@@ -846,520 +701,19 @@ static cJSON *create_schema_from_params(mcp_param_desc_t *params, size_t param_c
 // Unified Pure Function API Implementation
 // =============================================================================
 
-/*
- * COMMENTED OUT: Universal Pure Wrapper
- *
- * This wrapper was used by the commented embed_mcp_add_pure_function API.
- * Kept for reference but commented out to avoid unused function warnings.
- */
-/*
-// Universal wrapper that handles different function signatures
-static cJSON *universal_pure_wrapper(const cJSON *args, void *user_data) {
-    // user_data contains both function pointer and metadata
-    typedef struct {
-        void *func_ptr;
-        mcp_param_desc_t *params;
-        size_t param_count;
-        mcp_return_type_t return_type;
-    } wrapper_context_t;
-
-    wrapper_context_t *ctx = (wrapper_context_t*)user_data;
-
-    // Handle different parameter patterns
-    if (ctx->param_count == 2 &&
-        ctx->params[0].category == MCP_PARAM_SINGLE && ctx->params[0].single_type == MCP_PARAM_DOUBLE &&
-        ctx->params[1].category == MCP_PARAM_SINGLE && ctx->params[1].single_type == MCP_PARAM_DOUBLE &&
-        ctx->return_type == MCP_RETURN_DOUBLE) {
-
-        // Math function: double func(double a, double b)
-        typedef double (*math_func_t)(double, double);
-        math_func_t func = (math_func_t)ctx->func_ptr;
-
-        cJSON *a_json = cJSON_GetObjectItem(args, ctx->params[0].name);
-        cJSON *b_json = cJSON_GetObjectItem(args, ctx->params[1].name);
-
-        if (!a_json || !b_json || !cJSON_IsNumber(a_json) || !cJSON_IsNumber(b_json)) {
-            return NULL;
-        }
-
-        double result = func(a_json->valuedouble, b_json->valuedouble);
-
-        cJSON *response = cJSON_CreateObject();
-        cJSON *content = cJSON_CreateArray();
-        cJSON *text_content = cJSON_CreateObject();
-        cJSON_AddStringToObject(text_content, "type", "text");
-
-        char result_text[256];
-        snprintf(result_text, sizeof(result_text), "%.1f", result);
-        cJSON_AddStringToObject(text_content, "text", result_text);
-
-        cJSON_AddItemToArray(content, text_content);
-        cJSON_AddItemToObject(response, "content", content);
-        return response;
-    }
-
-    else if (ctx->param_count == 1 &&
-             ctx->params[0].category == MCP_PARAM_SINGLE && ctx->params[0].single_type == MCP_PARAM_STRING &&
-             ctx->return_type == MCP_RETURN_STRING) {
-
-        // Text function: char* func(const char* input)
-        typedef char* (*text_func_t)(const char*);
-        text_func_t func = (text_func_t)ctx->func_ptr;
-
-        cJSON *input_json = cJSON_GetObjectItem(args, ctx->params[0].name);
-        if (!input_json || !cJSON_IsString(input_json)) {
-            return NULL;
-        }
-
-        char *result = func(input_json->valuestring);
-        if (!result) {
-            return NULL;
-        }
-
-        cJSON *response = cJSON_CreateObject();
-        cJSON *content = cJSON_CreateArray();
-        cJSON *text_content = cJSON_CreateObject();
-        cJSON_AddStringToObject(text_content, "type", "text");
-        cJSON_AddStringToObject(text_content, "text", result);
-
-        cJSON_AddItemToArray(content, text_content);
-        cJSON_AddItemToObject(response, "content", content);
-
-        free(result);
-        return response;
-    }
-
-    else if (ctx->param_count == 1 &&
-             ctx->params[0].category == MCP_PARAM_ARRAY && ctx->params[0].array_desc.element_type == MCP_PARAM_DOUBLE &&
-             ctx->return_type == MCP_RETURN_DOUBLE) {
-
-        // Array function: double func(double* array, size_t count)
-        typedef double (*array_func_t)(double*, size_t);
-        array_func_t func = (array_func_t)ctx->func_ptr;
-
-        cJSON *array_json = cJSON_GetObjectItem(args, ctx->params[0].name);
-        if (!array_json || !cJSON_IsArray(array_json)) {
-            return NULL;
-        }
-
-        int count = cJSON_GetArraySize(array_json);
-        if (count == 0) {
-            return NULL;
-        }
-
-        double *numbers = malloc(count * sizeof(double));
-        if (!numbers) {
-            return NULL;
-        }
-
-        for (int i = 0; i < count; i++) {
-            cJSON *item = cJSON_GetArrayItem(array_json, i);
-            if (cJSON_IsNumber(item)) {
-                numbers[i] = item->valuedouble;
-            } else {
-                free(numbers);
-                return NULL;
-            }
-        }
-
-        double result = func(numbers, count);
-        free(numbers);
-
-        cJSON *response = cJSON_CreateObject();
-        cJSON *content = cJSON_CreateArray();
-        cJSON *text_content = cJSON_CreateObject();
-        cJSON_AddStringToObject(text_content, "type", "text");
-
-        char result_text[256];
-        snprintf(result_text, sizeof(result_text), "Sum of %d numbers: %.2f", count, result);
-        cJSON_AddStringToObject(text_content, "text", result_text);
-
-        cJSON_AddItemToArray(content, text_content);
-        cJSON_AddItemToObject(response, "content", content);
-        return response;
-    }
-
-    else if (ctx->param_count == 0 && ctx->return_type == MCP_RETURN_INT) {
-
-        // Status function: int func(void)
-        typedef int (*status_func_t)(void);
-        status_func_t func = (status_func_t)ctx->func_ptr;
-
-        int result = func();
-
-        cJSON *response = cJSON_CreateObject();
-        cJSON *content = cJSON_CreateArray();
-        cJSON *text_content = cJSON_CreateObject();
-        cJSON_AddStringToObject(text_content, "type", "text");
-
-        char result_text[256];
-        snprintf(result_text, sizeof(result_text), "%d", result);
-        cJSON_AddStringToObject(text_content, "text", result_text);
-
-        cJSON_AddItemToArray(content, text_content);
-        cJSON_AddItemToObject(response, "content", content);
-        return response;
-    }
-
-    // Unsupported function signature
-    return NULL;
-}
-*/
 
 
 
 
 
-/*
- * COMMENTED OUT: Pure Function API Implementation
- *
- * This implementation is kept for reference but commented out in favor of
- * the more flexible embed_mcp_add_tool API.
- */
-/*
-int embed_mcp_add_pure_function(embed_mcp_server_t *server,
-                                const char *name,
-                                const char *description,
-                                mcp_param_desc_t *params,
-                                size_t param_count,
-                                mcp_return_type_t return_type,
-                                mcp_universal_func_t function_ptr) {
-    if (!server || !name || !description || !function_ptr) {
-        set_error("Invalid parameters");
-        return -1;
-    }
 
-    // Create universal function data
-    typedef struct {
-        mcp_universal_func_t func;
-        mcp_return_type_t return_type;
-    } universal_func_data_t;
 
-    universal_func_data_t *func_data = malloc(sizeof(universal_func_data_t));
-    if (!func_data) {
-        set_error("Memory allocation failed");
-        return -1;
-    }
-
-    func_data->func = function_ptr;
-    func_data->return_type = return_type;
-
-    // Create input schema
-    cJSON *input_schema = NULL;
-    if (param_count > 0) {
-        input_schema = create_schema_from_params(params, param_count);
-        if (!input_schema) {
-            free(func_data);
-            set_error("Failed to create input schema");
-            return -1;
-        }
-    } else {
-        // No parameters - create empty schema
-        input_schema = cJSON_CreateObject();
-        cJSON_AddStringToObject(input_schema, "$schema", "http://json-schema.org/draft-07/schema#");
-        cJSON_AddStringToObject(input_schema, "type", "object");
-        cJSON_AddItemToObject(input_schema, "properties", cJSON_CreateObject());
-        cJSON_AddItemToObject(input_schema, "required", cJSON_CreateArray());
-        cJSON_AddBoolToObject(input_schema, "additionalProperties", false);
-    }
-
-    // Create tool with universal wrapper
-    mcp_tool_t *tool = mcp_tool_create(name, name, description, input_schema,
-                                      universal_function_wrapper, func_data);
-
-    cJSON_Delete(input_schema);
-
-    if (!tool) {
-        free(func_data);
-        set_error("Failed to create tool");
-        return -1;
-    }
-
-    // Register tool
-    if (mcp_tool_registry_register_tool(server->tool_registry, tool) != 0) {
-        mcp_tool_destroy(tool);
-        free(func_data);
-        set_error("Failed to register tool");
-        return -1;
-    }
-
-    return 0;
-}
-*/
 
 
 
 const char *embed_mcp_get_error(void) {
     return g_error_message[0] ? g_error_message : "No error";
 }
-
-// Simple function wrappers for different signatures
-/*
- * COMMENTED OUT: Simple Function Type Wrappers
- *
- * These wrappers were used by the commented simple_function_wrapper.
- * Kept for reference but commented out to avoid unused function warnings.
- */
-/*
-static void* string_string_wrapper(mcp_param_accessor_t* params, void* func_ptr) {
-    typedef char* (*func_t)(const char*);
-    func_t func = (func_t)func_ptr;
-
-    const char* input = params->get_string(params, "input");
-    return func(input);
-}
-
-static void* int_int_int_wrapper(mcp_param_accessor_t* params, void* func_ptr) {
-    typedef int (*func_t)(int, int);
-    func_t func = (func_t)func_ptr;
-
-    int a = (int)params->get_int(params, "a");
-    int b = (int)params->get_int(params, "b");
-    int result = func(a, b);
-
-    int* ret = malloc(sizeof(int));
-    if (!ret) return NULL;
-    *ret = result;
-    return ret;
-}
-
-static void* double_double_double_wrapper(mcp_param_accessor_t* params, void* func_ptr) {
-    typedef double (*func_t)(double, double);
-    func_t func = (func_t)func_ptr;
-
-    double a = params->get_double(params, "a");
-    double b = params->get_double(params, "b");
-    double result = func(a, b);
-
-    double* ret = malloc(sizeof(double));
-    if (!ret) return NULL;
-    *ret = result;
-    return ret;
-}
-
-static void* double_array_size_wrapper(mcp_param_accessor_t* params, void* func_ptr) {
-    typedef double (*func_t)(double*, size_t);
-    func_t func = (func_t)func_ptr;
-
-    size_t count;
-    double* array = params->get_double_array(params, "numbers", &count);
-    double result = func(array, count);
-
-    if (array) free(array);  // Clean up array from get_double_array
-
-    double* ret = malloc(sizeof(double));
-    if (!ret) return NULL;
-    *ret = result;
-    return ret;
-}
-*/
-
-/*
- * COMMENTED OUT: Simple Function Wrapper
- *
- * This wrapper was used by the commented embed_mcp_add_simple_func API.
- * Kept for reference but commented out to avoid unused function warnings.
- */
-/*
-// Simple function wrapper that calls the appropriate wrapper based on signature
-typedef struct {
-    mcp_func_signature_t signature;
-    void* original_func;
-} simple_func_data_t;
-
-static cJSON* simple_function_wrapper(const cJSON *args, void *user_data) {
-    simple_func_data_t* data = (simple_func_data_t*)user_data;
-
-    // Create parameter accessor
-    param_accessor_data_t accessor_data = { .args = args };
-    mcp_param_accessor_t accessor = {
-        .get_int = param_get_int,
-        .get_double = param_get_double,
-        .get_string = param_get_string,
-        .get_bool = param_get_bool,
-        .get_double_array = param_get_double_array,
-        .get_string_array = param_get_string_array,
-        .get_int_array = param_get_int_array,
-        .has_param = param_has_param,
-        .get_param_count = param_get_param_count,
-        .get_json = param_get_json,
-        .data = &accessor_data
-    };
-
-    void* result = NULL;
-
-    // Call appropriate wrapper based on signature
-    switch (data->signature) {
-        case MCP_FUNC_STRING_STRING:
-            result = string_string_wrapper(&accessor, data->original_func);
-            break;
-        case MCP_FUNC_INT_INT_INT:
-            result = int_int_int_wrapper(&accessor, data->original_func);
-            break;
-        case MCP_FUNC_DOUBLE_DOUBLE_DOUBLE:
-            result = double_double_double_wrapper(&accessor, data->original_func);
-            break;
-        case MCP_FUNC_DOUBLE_ARRAY_SIZE:
-            result = double_array_size_wrapper(&accessor, data->original_func);
-            break;
-        default:
-            return NULL;
-    }
-
-    // Convert result to JSON
-    cJSON* json_result = cJSON_CreateObject();
-    if (!json_result) {
-        if (result) free(result);
-        return NULL;
-    }
-
-    switch (data->signature) {
-        case MCP_FUNC_STRING_STRING:
-            if (result) {
-                cJSON_AddStringToObject(json_result, "content", (char*)result);
-                free(result);
-            } else {
-                cJSON_AddStringToObject(json_result, "content", "");
-            }
-            break;
-        case MCP_FUNC_INT_INT_INT:
-            if (result) {
-                cJSON_AddNumberToObject(json_result, "content", *(int*)result);
-                free(result);
-            } else {
-                cJSON_AddNumberToObject(json_result, "content", 0);
-            }
-            break;
-        case MCP_FUNC_DOUBLE_DOUBLE_DOUBLE:
-        case MCP_FUNC_DOUBLE_ARRAY_SIZE:
-            if (result) {
-                cJSON_AddNumberToObject(json_result, "content", *(double*)result);
-                free(result);
-            } else {
-                cJSON_AddNumberToObject(json_result, "content", 0.0);
-            }
-            break;
-        default:
-            cJSON_AddStringToObject(json_result, "content", "Unknown result type");
-            if (result) free(result);
-            break;
-    }
-
-    return json_result;
-}
-*/
-
-/*
- * COMMENTED OUT: Simple Function API Implementation
- *
- * This implementation is kept for reference but commented out in favor of
- * the more flexible embed_mcp_add_tool API.
- */
-/*
-int embed_mcp_add_simple_func(embed_mcp_server_t *server,
-                              const char *name,
-                              const char *description,
-                              mcp_func_signature_t signature,
-                              void *function_ptr) {
-    if (!server || !name || !description || !function_ptr) {
-        set_error("Invalid parameters");
-        return -1;
-    }
-
-    // Create parameter descriptions based on signature
-    mcp_param_desc_t *params = NULL;
-    size_t param_count = 0;
-    mcp_return_type_t return_type;
-
-    switch (signature) {
-        case MCP_FUNC_STRING_STRING:
-            param_count = 1;
-            params = malloc(sizeof(mcp_param_desc_t));
-            params[0] = (mcp_param_desc_t)MCP_PARAM_STRING_DEF("input", "Input string", 1);
-            return_type = MCP_RETURN_STRING;
-            break;
-
-        case MCP_FUNC_INT_INT_INT:
-            param_count = 2;
-            params = malloc(2 * sizeof(mcp_param_desc_t));
-            params[0] = (mcp_param_desc_t)MCP_PARAM_INT_DEF("a", "First integer", 1);
-            params[1] = (mcp_param_desc_t)MCP_PARAM_INT_DEF("b", "Second integer", 1);
-            return_type = MCP_RETURN_INT;
-            break;
-
-        case MCP_FUNC_DOUBLE_DOUBLE_DOUBLE:
-            param_count = 2;
-            params = malloc(2 * sizeof(mcp_param_desc_t));
-            params[0] = (mcp_param_desc_t)MCP_PARAM_DOUBLE_DEF("a", "First number", 1);
-            params[1] = (mcp_param_desc_t)MCP_PARAM_DOUBLE_DEF("b", "Second number", 1);
-            return_type = MCP_RETURN_DOUBLE;
-            break;
-
-        case MCP_FUNC_DOUBLE_ARRAY_SIZE:
-            param_count = 1;
-            params = malloc(sizeof(mcp_param_desc_t));
-            params[0] = (mcp_param_desc_t)MCP_PARAM_ARRAY_DOUBLE_DEF("numbers", "Array of numbers", "A number", 1);
-            return_type = MCP_RETURN_DOUBLE;
-            break;
-
-        default:
-            set_error("Unsupported function signature");
-            return -1;
-    }
-
-    // Create wrapper data
-    simple_func_data_t *wrapper_data = malloc(sizeof(simple_func_data_t));
-    if (!wrapper_data) {
-        free(params);
-        set_error("Memory allocation failed");
-        return -1;
-    }
-    wrapper_data->signature = signature;
-    wrapper_data->original_func = function_ptr;
-
-    // Create input schema
-    cJSON *input_schema = NULL;
-    if (param_count > 0) {
-        input_schema = create_schema_from_params(params, param_count);
-        if (!input_schema) {
-            free(params);
-            free(wrapper_data);
-            set_error("Failed to create input schema");
-            return -1;
-        }
-    } else {
-        input_schema = cJSON_CreateObject();
-        cJSON_AddStringToObject(input_schema, "$schema", "http://json-schema.org/draft-07/schema#");
-        cJSON_AddStringToObject(input_schema, "type", "object");
-        cJSON_AddItemToObject(input_schema, "properties", cJSON_CreateObject());
-        cJSON_AddItemToObject(input_schema, "required", cJSON_CreateArray());
-        cJSON_AddBoolToObject(input_schema, "additionalProperties", false);
-    }
-
-    // Create tool with simple function wrapper
-    mcp_tool_t *tool = mcp_tool_create(name, name, description, input_schema,
-                                      simple_function_wrapper, wrapper_data);
-
-    cJSON_Delete(input_schema);
-    free(params);
-
-    if (!tool) {
-        free(wrapper_data);
-        set_error("Failed to create tool");
-        return -1;
-    }
-
-    // Register tool
-    if (mcp_tool_registry_register_tool(server->tool_registry, tool) != 0) {
-        mcp_tool_destroy(tool);
-        free(wrapper_data);
-        set_error("Failed to register tool");
-        return -1;
-    }
-
-    return 0;
-}
-*/
 
 // Custom function wrapper for arbitrary parameter combinations
 typedef struct {
@@ -1699,6 +1053,11 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
         free(func_data);
         set_error("Failed to register tool");
         return -1;
+    }
+
+    // Update capabilities to reflect that we now have tools
+    if (server->protocol && server->protocol->config && server->protocol->config->capabilities) {
+        server->protocol->config->capabilities->server.tools = true;
     }
 
     return 0;

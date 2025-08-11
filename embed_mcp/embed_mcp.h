@@ -146,6 +146,7 @@ typedef enum {
 typedef struct {
     const char *name;           // Server name (displayed in MCP protocol)
     const char *version;        // Server version (displayed in MCP protocol)
+    const char *instructions;   // Server usage instructions (optional, displayed in MCP protocol)
     const char *host;           // HTTP bind address (default: "0.0.0.0")
     int port;                   // HTTP port number (default: 8080)
     const char *path;           // HTTP endpoint path (default: "/mcp")

@@ -43,7 +43,8 @@ typedef struct {
     // Server information
     char *server_name;
     char *server_version;
-    
+    char *instructions;         // Server usage instructions (optional)
+
     // Supported capabilities
     mcp_capabilities_t *capabilities;
 } mcp_protocol_config_t;
@@ -81,6 +82,8 @@ mcp_protocol_config_t *mcp_protocol_config_create_default(void);
 void mcp_protocol_config_destroy(mcp_protocol_config_t *config);
 int mcp_protocol_config_set_server_info(mcp_protocol_config_t *config,
                                        const char *name, const char *version);
+int mcp_protocol_config_set_instructions(mcp_protocol_config_t *config,
+                                        const char *instructions);
 
 // Callback registration
 void mcp_protocol_set_send_callback(mcp_protocol_t *protocol, 

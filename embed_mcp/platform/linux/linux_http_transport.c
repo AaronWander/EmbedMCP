@@ -17,13 +17,6 @@ static void* handler_user_data = NULL;
 static int server_port = 9943;  // 默认端口
 static char server_bind_address[256] = "0.0.0.0";  // 默认绑定地址
 
-// MCP 协议响应模板 (基于我们调试成功的格式)
-static const char* mcp_initialize_response =
-"{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":{\"protocolVersion\":\"%s\",\"capabilities\":{\"experimental\":{},\"prompts\":{\"listChanged\":true},\"resources\":{\"subscribe\":false,\"listChanged\":true},\"tools\":{\"listChanged\":true}},\"serverInfo\":{\"name\":\"EmbedMCP Server\",\"version\":\"1.0.0\"}}}";
-
-static const char* mcp_tools_response =
-"{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":{\"tools\":[{\"name\":\"add\",\"description\":\"Add two numbers together\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"number\",\"description\":\"First number\"},\"b\":{\"type\":\"number\",\"description\":\"Second number\"}},\"required\":[\"a\",\"b\"]}},{\"name\":\"weather\",\"description\":\"Get weather information for a city\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"description\":\"City name (supports Jinan/济南)\"}},\"required\":[\"city\"]}},{\"name\":\"calculate_score\",\"description\":\"Calculate a score based on parameters\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"base\":{\"type\":\"integer\",\"description\":\"Base score\"},\"grade\":{\"type\":\"string\",\"description\":\"Grade letter\"},\"multiplier\":{\"type\":\"number\",\"description\":\"Score multiplier\"}},\"required\":[\"base\",\"grade\",\"multiplier\"]}}]}}";
-
 // 解析 JSON-RPC 请求 - 使用 cJSON
 static int parse_jsonrpc_request(const char* body, char* method, int* id, char* protocol_version) {
     // 初始化输出参数
@@ -124,49 +117,8 @@ static void mongoose_event_handler(struct mg_connection *c, int ev, void *ev_dat
 
             parse_jsonrpc_request(body, method, &id, protocol_version);
 
-            mcp_log_debug("Linux HTTP: Parsed method='%s', id=%d", method, id);
-
-            // 处理不同的 MCP 方法
-            if (strstr(method, "notifications/initialized")) {
-                // 通知响应 - HTTP 202 Accepted
-                mg_http_reply(c, 202,
-                             "Content-Type: application/json\r\n"
-                             "Access-Control-Allow-Origin: *\r\n"
-                             "Access-Control-Allow-Headers: Content-Type, Authorization\r\n",
-                             "");
-                mcp_log_debug("Linux HTTP: Sent 202 Accepted for notifications/initialized");
-
-            } else if (strcmp(method, "initialize") == 0) {
-                // 初始化响应
-                char response[2048];
-                snprintf(response, sizeof(response), mcp_initialize_response, id, protocol_version);
-
-                mg_http_reply(c, 200,
-                             "Content-Type: text/event-stream\r\n"
-                             "Cache-Control: no-cache, no-transform\r\n"
-                             "Connection: keep-alive\r\n"
-                             "Access-Control-Allow-Origin: *\r\n"
-                             "Access-Control-Allow-Headers: Content-Type, Authorization\r\n",
-                             "event: message\ndata: %s\n\n", response);
-                mcp_log_debug("Linux HTTP: Sent initialize response (%zu bytes)", strlen(response));
-
-            } else if (strcmp(method, "tools/list") == 0) {
-                // 工具列表响应
-                char response[4096];
-                snprintf(response, sizeof(response), mcp_tools_response, id);
-
-                mg_http_reply(c, 200,
-                             "Content-Type: text/event-stream\r\n"
-                             "Cache-Control: no-cache, no-transform\r\n"
-                             "Connection: keep-alive\r\n"
-                             "Access-Control-Allow-Origin: *\r\n"
-                             "Access-Control-Allow-Headers: Content-Type, Authorization\r\n",
-                             "event: message\ndata: %s\n\n", response);
-                mcp_log_debug("Linux HTTP: Sent tools/list response (%zu bytes)", strlen(response));
-
-            } else {
-                // 其他请求 - 调用用户处理器
-                if (request_handler) {
+            // 处理所有 MCP 方法 - 统一交给用户处理器
+            if (request_handler) {
                     mcp_platform_http_request_t request = {0};
                     request.method = "POST";
                     request.url = "/mcp";
@@ -204,10 +156,9 @@ static void mongoose_event_handler(struct mg_connection *c, int ev, void *ev_dat
                         mcp_log_error("Linux HTTP: Request handler failed");
                         mg_http_reply(c, 500, NULL, "Internal Server Error");
                     }
-                } else {
-                    // 默认响应
-                    mg_http_reply(c, 404, NULL, "Not Found");
-                }
+            } else {
+                // 默认响应
+                mg_http_reply(c, 404, NULL, "Not Found");
             }
         } else {
             // 非 POST 请求

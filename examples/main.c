@@ -79,37 +79,6 @@ int calculate_score(int base_points, char grade, double multiplier) {
     return final_score;
 }
 
-// 树莓派特定的示例函数
-char* get_pi_info(void) {
-    printf("[DEBUG] Getting Raspberry Pi system information\n");
-
-    // 简单的系统信息收集
-    char* info = malloc(512);
-    if (!info) return strdup("Error: Memory allocation failed");
-
-    snprintf(info, 512,
-        "Raspberry Pi System Info:\n"
-        "- Architecture: "
-#ifdef __arm__
-        "ARM 32-bit"
-#elif defined(__aarch64__)
-        "ARM 64-bit"
-#else
-        "Unknown"
-#endif
-        "\n"
-        "- EmbedMCP Version: 1.0.0\n"
-        "- Transport: HTTP (mongoose)\n"
-        "- Status: Running\n"
-        "- Available Tools: add, weather, calculate_score, pi_info"
-    );
-
-    return info;
-}
-
-
-
-
 
 void print_usage(const char *program_name) {
     printf("Usage: %s [OPTIONS]\n", program_name);
@@ -137,7 +106,8 @@ int main(int argc, char *argv[]) {
     const char *bind_address = "0.0.0.0";
     const char *endpoint_path = "/mcp";
     int debug = 0;
-    
+    int result;
+         
     static struct option long_options[] = {
         {"transport", required_argument, 0, 't'},
         {"port", required_argument, 0, 'p'},
@@ -197,6 +167,9 @@ int main(int argc, char *argv[]) {
     embed_mcp_config_t config = {
         .name = "EmbedMCP-RaspberryPi",
         .version = "1.0.0",
+        .instructions = "EmbedMCP server with mathematical and utility tools. "
+                       "Available tools: add(a,b) for addition, weather(city) for weather info, "
+                       "and calculate_score(base,grade,multiplier) for grade calculations.",
         .host = bind_address,
         .port = port,
         .path = endpoint_path,
@@ -216,20 +189,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Failed to create server: %s\n", embed_mcp_get_error());
         return 1;
     }
-    
-    // =============================================================================
-    // 使用纯函数API注册工具 - 用户完全不需要处理JSON！
-    // =============================================================================
-    
-    printf("Registering tools with pure functions...\n");
-    
-    // =============================================================================
-    // Register three example tools - demonstrating different parameter types and handling
-    // =============================================================================
-
-    printf("Registering example tools...\n");
-
-    printf("Registering business functions using custom function API...\n");
 
     // Example 1: Simple math function - double add_numbers(double a, double b)
     const char* add_param_names[] = {"a", "b"};
@@ -240,7 +199,7 @@ int main(int argc, char *argv[]) {
                                   MCP_RETURN_DOUBLE, add_numbers) != 0) {
         printf("Failed to register 'add' function: %s\n", embed_mcp_get_error());
     } else {
-        printf("✅ Registered add(double, double) -> double\n");
+        printf("Registered add(double, double) -> double\n");
     }
 
     // Example 2: Array processing function - double sum_array(double*, size_t)
@@ -257,7 +216,7 @@ int main(int argc, char *argv[]) {
                                   MCP_RETURN_STRING, get_weather) != 0) {
         printf("Failed to register 'weather' function: %s\n", embed_mcp_get_error());
     } else {
-        printf("✅ Registered get_weather(const char*) -> char*\n");
+        printf("Registered get_weather(const char*) -> char*\n");
     }
 
     // Example 4: Multi-parameter function - int calculate_score(int, char, double)
@@ -269,17 +228,10 @@ int main(int argc, char *argv[]) {
                                   MCP_RETURN_INT, calculate_score) != 0) {
         printf("Failed to register 'calculate_score' function: %s\n", embed_mcp_get_error());
     } else {
-        printf("✅ Registered calculate_score(int, char, double) -> int\n");
+        printf("Registered calculate_score(int, char, double) -> int\n");
     }
 
-    // 树莓派特定工具
-    if (embed_mcp_add_tool(server, "pi_info", "Get Raspberry Pi system information",
-                                  NULL, NULL, 0,  // 无参数
-                                  MCP_RETURN_STRING, get_pi_info) != 0) {
-        printf("Failed to register 'pi_info' function: %s\n", embed_mcp_get_error());
-    } else {
-        printf("✅ Registered pi_info() -> string (Raspberry Pi specific)\n");
-    }
+
 
 
     
@@ -292,7 +244,6 @@ int main(int argc, char *argv[]) {
         printf("  • sum_array(numbers[]) - Sum array of numbers (demonstrates array handling)\n");
         printf("  • weather(city) - Get weather info (supports: Jinan/济南)\n");
         printf("  • calculate_score(base, grade, multiplier) - Calculate score with grade bonus\n");
-        printf("  • pi_info() - Get Raspberry Pi system information\n");
         printf("\nTry these in MCP Inspector, Dify, or with curl!\n");
         printf("Example curl test:\n");
         printf("  curl -X POST http://%s:%d%s \\\n",
@@ -301,7 +252,7 @@ int main(int argc, char *argv[]) {
         printf("       -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}'\n");
     }
     
-    int result;
+
     if (strcmp(transport_type, "http") == 0) {
         result = embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
     } else {

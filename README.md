@@ -12,30 +12,23 @@ A lightweight C library for creating MCP (Model Context Protocol) servers with p
 ✅ **Tool System** - Complete implementation with flexible function API
 ✅ **Multi-Session Support** - Concurrent connections with session management
 ✅ **HAL Architecture** - Hardware Abstraction Layer for cross-platform support
-✅ **Cross-Platform Ready** - Linux, embedded Linux, RTOS support via HAL
 ✅ **HTTP/STDIO Transport** - Full MCP protocol support
 🚧 **Resource System** - Coming soon
 🚧 **Prompt System** - Coming soon
 🚧 **Sampling System** - Coming soon
 
-Currently, EmbedMCP focuses on the **Tool** part of MCP protocol, allowing you to create powerful MCP servers with custom tools and support multiple concurrent clients. The library features a Hardware Abstraction Layer (HAL) that enables the same application code to run on Linux, embedded Linux, and various RTOS platforms without modification!
+EmbedMCP allows you to create powerful custom tool MCP servers and support multiple concurrent clients. The library features a Hardware Abstraction Layer (HAL) that enables the same application code to run on Linux, embedded Linux, and various RTOS platforms without modification!
 
 ## Features
 
 - **Cross-Platform** - Same code runs on Linux, embedded Linux, and RTOS via HAL
 - **Multi-Session Support** - Handle multiple concurrent clients with session management
 - **Easy Integration** - Copy one folder, include one header file
-- **Multiple Transports** - HTTP and STDIO support (UART/SPI/CAN for RTOS)
-
-## Cross-Platform Architecture
-
-EmbedMCP features a **Hardware Abstraction Layer (HAL)** that enables the same application code to run on multiple platforms without modification:
+- **Multiple Transports** - HTTP and STDIO support
 
 ### Supported Platforms
 - ✅ **Embedded Linux** - Raspberry Pi, embedded systems
 - 🚧 **FreeRTOS** - Real-time operating system
-- 🚧 **Zephyr** - IoT and embedded applications
-- 🚧 **ROS2** - Robotics applications
 
 ### Write Once, Run Everywhere
 ```c
@@ -46,7 +39,10 @@ double add_numbers(double a, double b) {
 
 int main() {
     embed_mcp_config_t config = {
-        .name = "MyApp", .version = "1.0.0", .port = 8080
+        .name = "MyApp",
+        .version = "1.0.0",
+        .instructions = "Simple math server. Use 'add' tool to add two numbers.",
+        .port = 8080
     };
 
     embed_mcp_server_t *server = embed_mcp_create(&config);
@@ -56,7 +52,7 @@ int main() {
     mcp_param_type_t param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
     embed_mcp_add_tool(server, "add", "Add numbers", param_names, param_types, 2, MCP_RETURN_DOUBLE, add_numbers);
 
-    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);  // Works on Linux, RTOS, ROS2, etc.
+    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);  // Works on Linux, RTOS, etc.
     embed_mcp_destroy(server);
     return 0;
 }
@@ -71,6 +67,54 @@ int main() {
 Done! You have a working MCP server.
 
 **💡 Tip:** Check out the `examples/` folder for complete working examples!
+
+## MCP Protocol Compliance
+
+EmbedMCP is fully compliant with the official MCP specification and works seamlessly with all MCP clients including Dify, MCP Inspector, and any application using the official MCP SDKs.
+
+### Dynamic Capabilities
+
+EmbedMCP automatically generates server capabilities based on what you actually implement:
+
+```json
+{
+  "capabilities": {
+    "tools": {"listChanged": true},     // Only appears when you register tools
+    "resources": {"listChanged": true}, // Only appears when you add resources
+    "prompts": {"listChanged": true},   // Only appears when you add prompts
+    "logging": {}                       // Always available for debugging
+  }
+}
+```
+
+**Key Benefits:**
+- ✅ **No false advertising** - Only advertise features you actually support
+- ✅ **Client compatibility** - Clients know exactly what your server can do
+- ✅ **Automatic updates** - Capabilities update as you add/remove features
+
+### MCP Server Configuration Example
+Configure helpful instructions that appear in MCP clients:
+
+```c
+embed_mcp_config_t config = {
+    .name = "WeatherServer",
+    .version = "1.0.0",
+    .instructions = "Weather information server. Use 'get_weather(city)' to get current weather for any city.",
+    // ... other config
+};
+```
+
+### MCP Server Session Configuration Example
+```c
+embed_mcp_config_t config = {
+    .max_connections = 10,    // Up to 10 concurrent clients
+    .session_timeout = 3600,  // 1 hour session timeout
+    .enable_sessions = 1,     // Enable session management
+    .auto_cleanup = 1         // Auto cleanup expired sessions
+};
+```
+
+These instructions help users understand how to use your server and appear in MCP Inspector, Dify, and other clients.
 
 ## Integration Guide
 
@@ -93,13 +137,19 @@ your_project/
 │   ├── embed_mcp.h           # Main API header
 │   ├── embed_mcp.c           # Main API implementation
 │   ├── Makefile.inc          # Makefile configuration
-│   ├── application/          # Session management
+│   ├── application/          # Session management & multi-client support
 │   ├── cjson/                # JSON dependency
 │   ├── hal/                  # Hardware abstraction layer
+│   │   └── freertos/         # FreeRTOS-specific implementations
+│   ├── platform/             # Platform-specific implementations
+│   │   └── linux/            # Linux platform (HTTP via Mongoose)
 │   ├── protocol/             # MCP protocol implementation
+│   │   ├── mcp_protocol.c    # Core protocol logic & dynamic capabilities
+│   │   ├── protocol_state.c  # Protocol state management
+│   │   └── ...               # Other protocol files
 │   ├── tools/                # Tool system
 │   ├── transport/            # HTTP/STDIO transport
-│   └── utils/                # Utilities
+│   └── utils/                # Utilities (logging, UUID, base64, etc.)
 └── Makefile
 ```
 
@@ -120,6 +170,7 @@ int main() {
     embed_mcp_config_t config = {
         .name = "MyApp",
         .version = "1.0.0",
+        .instructions = "Mathematical tools server. Use 'add' to add two numbers together.",
         .host = "0.0.0.0",      // HTTP bind address
         .port = 8080,           // HTTP port
         .path = "/mcp",         // HTTP endpoint path
@@ -170,55 +221,6 @@ gcc main.c embed_mcp/*.c embed_mcp/*/*.c embed_mcp/cjson/*.c \
     -Iembed_mcp -lpthread -lm -o my_app
 ```
 
-## Library Files Overview
-
-The `embed_mcp/` folder contains all the files needed to integrate EmbedMCP into your project:
-
-### Core Files
-- **`embed_mcp.h`** - Main API header file (this is what you include)
-- **`embed_mcp.c`** - Main API implementation
-- **`cjson/`** - JSON parsing dependency (bundled)
-  - `cJSON.h` - JSON parser header
-  - `cJSON.c` - JSON parser implementation
-
-### Internal Implementation
-- **`hal/`** - Hardware abstraction layer
-  - `platform_hal.h` - HAL interface definitions
-  - `hal_common.h/.c` - Common HAL utilities
-  - `linux_hal.c` - Linux platform implementation
-  - `freertos_hal.c` - FreeRTOS platform implementation
-
-- **`protocol/`** - MCP protocol implementation
-  - `mcp_protocol.h/.c` - Core protocol handling
-  - `message.h/.c` - Message parsing and formatting
-  - `jsonrpc.h/.c` - JSON-RPC implementation
-  - `protocol_state.h/.c` - Protocol state management
-
-- **`transport/`** - Transport layer (HTTP/STDIO)
-  - `transport_interface.h` - Transport abstraction
-  - `http_transport.h/.c` - HTTP server implementation
-  - `stdio_transport.h/.c` - STDIO transport for MCP clients
-  - `transport.c` - Transport layer coordination
-
-- **`tools/`** - Tool system
-  - `tool_interface.h/.c` - Tool interface and execution
-  - `tool_registry.h/.c` - Tool registration and management
-  - `builtin_tools.h/.c` - Built-in tools (math, text, etc.)
-
-- **`application/`** - Session management
-  - `session_manager.h/.c` - Session isolation and management
-
-- **`utils/`** - Utilities
-  - `logging.h/.c` - Logging system
-
-### What You Need to Know
-
-**For Users:** You only need to know about `embed_mcp.h` - that's your entire API!
-
-**For Integration:** Copy the entire `embed_mcp/` folder and compile all `.c` files together.
-
-**Single-Client Design:** The library is currently optimized for single-client scenarios. Multi-client support is planned for future releases.
-
 ## Core Data Structures
 
 ### Server Configuration (`embed_mcp_config_t`)
@@ -227,11 +229,18 @@ The `embed_mcp/` folder contains all the files needed to integrate EmbedMCP into
 typedef struct {
     const char *name;           // Server name (displayed in MCP protocol)
     const char *version;        // Server version (displayed in MCP protocol)
+    const char *instructions;   // Server usage instructions (optional, displayed in MCP protocol)
     const char *host;           // HTTP bind address (default: "0.0.0.0")
     int port;                   // HTTP port number (default: 8080)
     const char *path;           // HTTP endpoint path (default: "/mcp")
     int max_tools;              // Maximum number of tools allowed (default: 100)
     int debug;                  // Enable debug logging (0=off, 1=on, default: 0)
+
+    // Multi-session support
+    int max_connections;        // Maximum concurrent connections (default: 10)
+    int session_timeout;        // Session timeout in seconds (default: 3600)
+    int enable_sessions;        // Enable session management (0=off, 1=on, default: 1)
+    int auto_cleanup;           // Auto cleanup expired sessions (0=off, 1=on, default: 1)
 } embed_mcp_config_t;
 ```
 
@@ -241,11 +250,16 @@ typedef struct {
 |-------|------|-------------|---------------|
 | `name` | `const char*` | Server name (displayed in MCP protocol) | `"MyApp"` |
 | `version` | `const char*` | Server version (displayed in MCP protocol) | `"1.0.0"` |
+| `instructions` | `const char*` | Server usage instructions (optional) | `"Use 'add' to add numbers"` |
 | `host` | `const char*` | HTTP bind address | `"0.0.0.0"` |
 | `port` | `int` | HTTP port number | `8080` |
 | `path` | `const char*` | HTTP endpoint path | `"/mcp"` |
 | `max_tools` | `int` | Maximum number of tools allowed | `100` |
 | `debug` | `int` | Enable debug logging (0=off, 1=on) | `0` |
+| `max_connections` | `int` | Maximum concurrent connections | `10` |
+| `session_timeout` | `int` | Session timeout in seconds | `3600` |
+| `enable_sessions` | `int` | Enable session management (0=off, 1=on) | `1` |
+| `auto_cleanup` | `int` | Auto cleanup expired sessions (0=off, 1=on) | `1` |
 
 ### Parameter Description (`mcp_param_desc_t`)
 
@@ -346,6 +360,33 @@ embed_mcp_add_tool(server, "add", "Add two integers",
                    param_names, param_types, 2, MCP_RETURN_INT, add_function);
 ```
 
+### Parameter Definition Macros
+
+These macros simplify parameter definition:
+
+```c
+// Single-value parameters
+MCP_PARAM_DOUBLE_DEF(name, description, required)   // Double parameter
+MCP_PARAM_INT_DEF(name, description, required)      // Integer parameter
+MCP_PARAM_STRING_DEF(name, description, required)   // String parameter
+MCP_PARAM_BOOL_DEF(name, description, required)     // Boolean parameter
+
+// Array parameters
+MCP_PARAM_ARRAY_DOUBLE_DEF(name, desc, elem_desc, required)  // Double array
+MCP_PARAM_ARRAY_STRING_DEF(name, desc, elem_desc, required)  // String array
+MCP_PARAM_ARRAY_INT_DEF(name, desc, elem_desc, required)     // Integer array
+
+// Complex object parameters
+MCP_PARAM_OBJECT_DEF(name, description, json_schema, required)  // Custom JSON object
+```
+
+**Parameters:**
+- `name` - Parameter name (string literal)
+- `description` - Human-readable description (string literal)
+- `elem_desc` - Array element description (string literal)
+- `json_schema` - JSON Schema string for object validation
+- `required` - 1 if required, 0 if optional
+
 ### Return Types
 
 ```c
@@ -366,222 +407,49 @@ typedef enum {
 } embed_mcp_transport_t;
 ```
 
-## Complete Examples
-
-**📁 Full source code available in the `examples/` directory!**
-
-### 1. Basic Math Tool
-
-```c
-#include "embed_mcp.h"
-
-// Simple C function - no JSON handling required!
-double add_numbers(double a, double b) {
-    return a + b;
-}
-
-int main() {
-    // Create server configuration
-    embed_mcp_config_t config = {
-        .name = "MathServer",
-        .version = "1.0.0",
-        .host = "0.0.0.0",
-        .port = 8080,
-        .path = "/mcp",
-        .max_tools = 100,
-        .debug = 1
-    };
-
-    // Create server
-    embed_mcp_server_t *server = embed_mcp_create(&config);
-    if (!server) {
-        printf("Error: %s\n", embed_mcp_get_error());
-        return -1;
-    }
-
-    // Register tool with parameter names and types
-    const char* param_names[] = {"a", "b"};
-    mcp_param_type_t param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
-
-    if (embed_mcp_add_tool(server, "add", "Add two numbers together",
-                           param_names, param_types, 2,
-                           MCP_RETURN_DOUBLE, add_numbers) != 0) {
-        printf("Error: %s\n", embed_mcp_get_error());
-        embed_mcp_destroy(server);
-        return -1;
-    }
-
-    // Run server
-    printf("Starting MCP server on http://localhost:8080/mcp\n");
-    int result = embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
-
-    // Cleanup
-    embed_mcp_destroy(server);
-    return result;
-}
-```
-
-### 2. String Processing Tool
-
-```c
-char* process_text(const char* text, const char* operation) {
-    size_t len = strlen(text);
-    char* result = malloc(len + 1);
-
-    if (strcmp(operation, "upper") == 0) {
-        for (size_t i = 0; i < len; i++) {
-            result[i] = toupper(text[i]);
-        }
-    } else if (strcmp(operation, "lower") == 0) {
-        for (size_t i = 0; i < len; i++) {
-            result[i] = tolower(text[i]);
-        }
-    } else {
-        strcpy(result, text);  // No change
-    }
-    result[len] = '\0';
-
-    return result;
-}
-
-// Register the tool
-const char* text_param_names[] = {"text", "operation"};
-mcp_param_type_t text_param_types[] = {MCP_PARAM_STRING, MCP_PARAM_STRING};
-
-embed_mcp_add_tool(server, "process_text", "Process text with various operations",
-                   text_param_names, text_param_types, 2,
-                   MCP_RETURN_STRING, process_text);
-```
-
-### 3. Multi-Parameter Tool
-
-```c
-int calculate_score(int base_points, char grade, double multiplier) {
-    int bonus = 0;
-    switch (grade) {
-        case 'A': bonus = 100; break;
-        case 'B': bonus = 80; break;
-        case 'C': bonus = 60; break;
-        default: bonus = 0; break;
-    }
-
-    return (int)((base_points + bonus) * multiplier);
-}
-
-// Register the tool
-const char* score_param_names[] = {"base_points", "grade", "multiplier"};
-mcp_param_type_t score_param_types[] = {MCP_PARAM_INT, MCP_PARAM_CHAR, MCP_PARAM_DOUBLE};
-
-embed_mcp_add_tool(server, "calculate_score", "Calculate score with grade bonus",
-                   score_param_names, score_param_types, 3,
-                   MCP_RETURN_INT, calculate_score);
-```
-
-### 4. Running the Server
-
-```bash
-# Build the server (uses embed_mcp/ library - dogfooding!)
-make
-
-# Run with HTTP transport
-./bin/mcp_server -t http -p 8080
-
-# Run with STDIO transport (for MCP clients)
-./bin/mcp_server -t stdio
-
-# Run with debug logging
-./bin/mcp_server -t http -p 8080 -d
-```
-
-**Note:** Our example server is built using the `embed_mcp/` library itself, proving that the library works correctly!
-
-## Dogfooding - We Use Our Own Library!
-
-We practice "dogfooding" - our example server uses the `embed_mcp/` library itself. This proves the library works, is easy to integrate, and follows its own documentation.
-
-**Proof:** Our `Makefile` compiles `examples/main.c` against the `embed_mcp/` library!
-
-## Testing & Validation
-
-✅ **MCP Inspector Compatible** - Passes all protocol compliance tests
-✅ **Multi-Session Tested** - Supports concurrent connections with session isolation
-✅ **Production Tested** - HTTP/STDIO transports, multiple parameter types
-✅ **Real-World Validated** - We use our own library (dogfooding)
-
-### Multi-Session Testing
-
-Test concurrent connections with multiple MCP Inspector instances:
-
-```bash
-# Start the server
-./bin/mcp_server -t http -p 8080 -d
-
-# Start multiple MCP Inspector instances
-npx @modelcontextprotocol/inspector --config config1.json
-PORT=6278 npx @modelcontextprotocol/inspector  # Different port
-
-# Connect both to: http://localhost:8080/mcp
-```
-
-Each connection creates an independent session with:
-- Unique session ID
-- Independent session state
-- Automatic timeout and cleanup
-- Thread-safe concurrent access
-
-## Building and Running
-
-### Build the Example (Development)
+### Build Example (Development)
 
 For development and testing, you can build the included example:
 
 ```bash
 make debug    # Debug build with symbols
-make release  # Optimized release build
 make clean    # Clean build files
 ```
 
-### Run the Example Server
+### Run Example Server
 
 ```bash
-# Build and run the example server
-make debug
+# Build and run example server (using embed_mcp/ library - self-validation!)
+make
 ./bin/mcp_server -t http -p 8080
 
-# Or with STDIO transport
+# Or use STDIO transport
 ./bin/mcp_server -t stdio
+
+# Enable debug logging
+./bin/mcp_server -t http -p 8080 -d
 ```
 
-The example server includes three demo tools (registered using `embed_mcp_add_tool`):
-- `add(a, b)` - Add two numbers (demonstrates basic math)
-- `weather(city)` - Get weather info (demonstrates string processing, supports Jinan/济南)
+Example server includes three demo tools (registered using `embed_mcp_add_tool`):
+- `add(a, b)` - Add two numbers (demonstrates basic math operations)
+- `weather(city)` - Get weather information (demonstrates string processing)
 - `calculate_score(base_points, grade, multiplier)` - Calculate score with grade bonus (demonstrates mixed parameter types)
 
 ### Test with MCP Inspector
 
-1. Open MCP Inspector: Visit https://inspector.mcp.dev
+1. Open MCP Inspector: visit https://inspector.mcp.dev
 2. Run your server: `./bin/mcp_server -t http -p 8080`
 3. Connect in MCP Inspector
 4. Connect to: `http://localhost:8080/mcp`
 
-
-
-## Integration Guide
-
 ## Important Notes
 
-### Multi-Client Support
-**Current Status:** EmbedMCP currently supports single-client scenarios. Multi-client support is planned for future releases.
+### Error Handling
+Always check return values and use `embed_mcp_get_error()` for detailed error information
 
-**Current Limitations:**
-- Designed for single-client or sequential client access
-- Concurrent clients may interfere with each other
-- No session isolation between clients
-
-**Workarounds:**
-- Use a reverse proxy/load balancer for multiple clients
-- Run multiple EmbedMCP server instances
-- Ensure only one client connects at a time
+### Transport Types
+- **HTTP Transport:** Best for web integration, supports multiple concurrent clients
+- **STDIO Transport:** Best for MCP client integration (Claude Desktop, etc.)
 
 ### Thread Safety
 The library handles concurrent requests safely. Your tool functions should be stateless or use proper synchronization if they access shared resources.
@@ -592,29 +460,6 @@ The library handles concurrent requests safely. Your tool functions should be st
 - **Simple Types:** Return by value (double, int) or malloc'd pointer
 
 
-
-### Transport Types
-- **HTTP Transport:** Best for web integration, supports multiple concurrent clients
-- **STDIO Transport:** Best for MCP client integration (Claude Desktop, etc.)
-
-### Performance Tips
-- Keep tool functions lightweight and fast
-- Use appropriate parameter types (avoid complex nested objects when possible)
-- Consider caching expensive computations
-
-### Memory Management
-
-- **Return values:** Your pure functions should return malloc'd memory
-- **Parameters:** Automatically managed by the library
-- **Strings:** String returns are freed by the library after sending response
-
-
-
-## Roadmap
-
-- ✅ **v1.0** - Tool system, MCP Inspector compatible, production ready
-- ✅ **v1.1** - Multi-session support, concurrent connections, session management
-- ✅ **v1.2** - HAL architecture, cross-platform support, code reuse optimization
 
 ## Contributing
 

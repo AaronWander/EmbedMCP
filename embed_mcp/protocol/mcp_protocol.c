@@ -29,6 +29,9 @@ mcp_protocol_t *mcp_protocol_create(const mcp_protocol_config_t *config) {
         if (config->server_version) {
             protocol->config->server_version = strdup(config->server_version);
         }
+        if (config->instructions) {
+            protocol->config->instructions = strdup(config->instructions);
+        }
         if (config->capabilities) {
             protocol->config->capabilities = calloc(1, sizeof(mcp_capabilities_t));
             if (protocol->config->capabilities) {
@@ -104,6 +107,7 @@ mcp_protocol_config_t *mcp_protocol_config_create_default(void) {
     
     config->server_name = strdup("EmbedMCP");
     config->server_version = strdup("1.0.0");
+    config->instructions = NULL;  // Will be set by user configuration
     config->capabilities = mcp_capabilities_create_default();
     
     return config;
@@ -117,6 +121,7 @@ void mcp_protocol_config_destroy(mcp_protocol_config_t *config) {
     if (hal) {
         if (config->server_name) hal->memory.free(config->server_name);
         if (config->server_version) hal->memory.free(config->server_version);
+        if (config->instructions) hal->memory.free(config->instructions);
 
         mcp_capabilities_destroy(config->capabilities);
         hal->memory.free(config);
@@ -126,13 +131,23 @@ void mcp_protocol_config_destroy(mcp_protocol_config_t *config) {
 int mcp_protocol_config_set_server_info(mcp_protocol_config_t *config,
                                        const char *name, const char *version) {
     if (!config) return -1;
-    
+
     free(config->server_name);
     free(config->server_version);
-    
+
     config->server_name = name ? strdup(name) : NULL;
     config->server_version = version ? strdup(version) : NULL;
-    
+
+    return 0;
+}
+
+int mcp_protocol_config_set_instructions(mcp_protocol_config_t *config,
+                                        const char *instructions) {
+    if (!config) return -1;
+
+    free(config->instructions);
+    config->instructions = instructions ? strdup(instructions) : NULL;
+
     return 0;
 }
 
@@ -359,24 +374,23 @@ cJSON *mcp_protocol_handle_initialize(mcp_protocol_t *protocol, const mcp_reques
 
     cJSON_AddStringToObject(result, "protocolVersion", MCP_PROTOCOL_VERSION);
 
-    // Server info
-    cJSON *server_info = cJSON_CreateObject();
-    cJSON_AddStringToObject(server_info, "name", "EmbedMCP");
-    cJSON_AddStringToObject(server_info, "version", "1.12.3");
-    cJSON_AddItemToObject(result, "serverInfo", server_info);
+    // Server info - use configuration
+    cJSON *server_info = mcp_protocol_create_server_info(protocol);
+    if (server_info) {
+        cJSON_AddItemToObject(result, "serverInfo", server_info);
+    }
 
-    // Server capabilities - match successful format exactly (like AMap)
-    cJSON *capabilities = cJSON_CreateObject();
+    // Server capabilities - use configuration
+    cJSON *capabilities = mcp_protocol_create_capabilities_json(protocol);
+    if (capabilities) {
+        cJSON_AddItemToObject(result, "capabilities", capabilities);
+    }
 
-    // Add experimental first (empty object)
-    cJSON_AddItemToObject(capabilities, "experimental", cJSON_CreateObject());
-
-    // Add tools capability
-    cJSON *tools = cJSON_CreateObject();
-    cJSON_AddBoolToObject(tools, "listChanged", false);  // Match AMap format
-    cJSON_AddItemToObject(capabilities, "tools", tools);
-
-    cJSON_AddItemToObject(result, "capabilities", capabilities);
+    // Instructions (optional) - use configuration
+    if (protocol->config && protocol->config->instructions &&
+        strlen(protocol->config->instructions) > 0) {
+        cJSON_AddStringToObject(result, "instructions", protocol->config->instructions);
+    }
 
     protocol->initialized = true;
 
@@ -440,6 +454,8 @@ cJSON *mcp_protocol_create_capabilities_json(const mcp_protocol_t *protocol) {
 
     return mcp_capabilities_to_json(protocol->config->capabilities);
 }
+
+
 
 // Error helpers
 int mcp_protocol_send_parse_error(mcp_protocol_t *protocol, cJSON *id) {

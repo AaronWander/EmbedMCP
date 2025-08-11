@@ -12,30 +12,24 @@
 ✅ **工具系统** - 完整实现，支持灵活的函数API
 ✅ **多会话支持** - 并发连接与会话管理
 ✅ **HAL架构** - 硬件抽象层，支持跨平台开发
-✅ **跨平台就绪** - 通过HAL支持Linux、嵌入式Linux、RTOS
 ✅ **HTTP/STDIO传输** - 完整的MCP协议支持
 🚧 **资源系统** - 即将推出
 🚧 **提示系统** - 即将推出
 🚧 **采样系统** - 即将推出
 
-目前，EmbedMCP专注于MCP协议的**工具**部分，让您能够创建强大的自定义工具MCP服务器并支持多个并发客户端。该库具有硬件抽象层（HAL），使相同的应用程序代码能够在Linux、嵌入式Linux和各种RTOS平台上运行而无需修改！
+EmbedMCP让您能够创建强大的自定义工具MCP服务器并支持多个并发客户端。该库具有硬件抽象层（HAL），使相同的应用程序代码能够在Linux、嵌入式Linux和各种RTOS平台上运行而无需修改！
 
 ## 特性
 
 - **跨平台** - 相同代码通过HAL在Linux、嵌入式Linux、RTOS上运行
 - **多会话支持** - 处理多个并发客户端，支持会话管理
 - **易于集成** - 复制一个文件夹，包含一个头文件即可
-- **多种传输** - HTTP和STDIO支持（RTOS支持UART/SPI/CAN）
-
-## 跨平台架构
-
-EmbedMCP具有**硬件抽象层（HAL）**，使相同的应用程序代码能够在多个平台上运行而无需修改：
+- **多种传输** - HTTP和STDIO支持
 
 ### 支持的平台
 - ✅ **嵌入式Linux** - 树莓派、嵌入式系统
 - 🚧 **FreeRTOS** - 实时操作系统
-- 🚧 **ROS2** - 机器人应用
-- 🚧 **Zephyr** - 物联网和嵌入式应用
+
 
 ### 一次编写，到处运行
 ```c
@@ -46,7 +40,10 @@ double add_numbers(double a, double b) {
 
 int main() {
     embed_mcp_config_t config = {
-        .name = "MyApp", .version = "1.0.0", .port = 8080
+        .name = "MyApp",
+        .version = "1.0.0",
+        .instructions = "简单的数学服务器。使用 'add' 工具来计算两个数字的和。",
+        .port = 8080
     };
 
     embed_mcp_server_t *server = embed_mcp_create(&config);
@@ -72,7 +69,44 @@ int main() {
 
 完成！您有了一个可工作的MCP服务器。
 
-**💡 提示：** 查看 `examples/` 文件夹获取完整的工作示例！
+
+### MCP Server初始化配置信息示例
+EmbedMCP根据您实际实现的功能自动生成服务器能力：
+
+```json
+{
+  "capabilities": {
+    "tools": {"listChanged": true},     // 仅在注册工具时出现
+    "resources": {"listChanged": true}, // 仅在添加资源时出现
+    "prompts": {"listChanged": true},   // 仅在添加提示时出现
+    "logging": {}                       // 始终可用于调试
+  }
+}
+```
+
+### MCP Server配置信息示例
+配置有用的说明，显示在MCP客户端中：
+
+```c
+embed_mcp_config_t config = {
+    .name = "天气服务器",
+    .version = "1.0.0",
+    .instructions = "天气信息服务器。使用 'get_weather(城市)' 获取任意城市的当前天气。",
+    // ... 其他配置
+};
+```
+
+### MCP Server会话配置信息示例
+```c
+embed_mcp_config_t config = {
+    .max_connections = 10,    // 最多10个并发客户端
+    .session_timeout = 3600,  // 1小时会话超时
+    .enable_sessions = 1,     // 启用会话管理
+    .auto_cleanup = 1         // 自动清理过期会话
+};
+```
+
+这些说明帮助用户理解如何使用您的服务器，并显示在MCP Inspector、Dify和其他客户端中。
 
 ## 集成指南
 
@@ -95,13 +129,19 @@ your_project/
 │   ├── embed_mcp.h           # 主API头文件
 │   ├── embed_mcp.c           # 主API实现
 │   ├── Makefile.inc          # Makefile配置
-│   ├── application/          # 会话管理
+│   ├── application/          # 会话管理和多客户端支持
 │   ├── cjson/                # JSON依赖
 │   ├── hal/                  # 硬件抽象层
+│   │   └── freertos/         # FreeRTOS特定实现
+│   ├── platform/             # 平台特定实现
+│   │   └── linux/            # Linux平台（通过Mongoose提供HTTP）
 │   ├── protocol/             # MCP协议实现
+│   │   ├── mcp_protocol.c    # 核心协议逻辑和动态能力检测
+│   │   ├── protocol_state.c  # 协议状态管理
+│   │   └── ...               # 其他协议文件
 │   ├── tools/                # 工具系统
 │   ├── transport/            # HTTP/STDIO传输
-│   └── utils/                # 工具库
+│   └── utils/                # 工具库（日志、UUID、base64等）
 └── Makefile
 ```
 
@@ -122,6 +162,7 @@ int main() {
     embed_mcp_config_t config = {
         .name = "MyApp",
         .version = "1.0.0",
+        .instructions = "数学工具服务器。使用 'add' 工具来计算两个数字的和。",
         .host = "0.0.0.0",      // HTTP绑定地址
         .port = 8080,           // HTTP端口
         .path = "/mcp",         // HTTP端点路径
@@ -180,11 +221,18 @@ gcc main.c embed_mcp/*.c embed_mcp/*/*.c embed_mcp/cjson/*.c \
 typedef struct {
     const char *name;           // 服务器名称（在MCP协议中显示）
     const char *version;        // 服务器版本（在MCP协议中显示）
+    const char *instructions;   // 服务器使用说明（可选，在MCP协议中显示）
     const char *host;           // HTTP绑定地址（默认："0.0.0.0"）
     int port;                   // HTTP端口号（默认：8080）
     const char *path;           // HTTP端点路径（默认："/mcp"）
     int max_tools;              // 允许的最大工具数量（默认：100）
     int debug;                  // 启用调试日志（0=关闭，1=开启，默认：0）
+
+    // 多会话支持
+    int max_connections;        // 最大并发连接数（默认：10）
+    int session_timeout;        // 会话超时时间（秒）（默认：3600）
+    int enable_sessions;        // 启用会话管理（0=关闭，1=开启，默认：1）
+    int auto_cleanup;           // 自动清理过期会话（0=关闭，1=开启，默认：1）
 } embed_mcp_config_t;
 ```
 
@@ -194,11 +242,16 @@ typedef struct {
 |------|------|------|--------|
 | `name` | `const char*` | 服务器名称（在MCP协议中显示） | `"MyApp"` |
 | `version` | `const char*` | 服务器版本（在MCP协议中显示） | `"1.0.0"` |
+| `instructions` | `const char*` | 服务器使用说明（可选） | `"使用 'add' 来计算数字"` |
 | `host` | `const char*` | HTTP绑定地址 | `"0.0.0.0"` |
 | `port` | `int` | HTTP端口号 | `8080` |
 | `path` | `const char*` | HTTP端点路径 | `"/mcp"` |
 | `max_tools` | `int` | 允许的最大工具数量 | `100` |
 | `debug` | `int` | 启用调试日志（0=关闭，1=开启） | `0` |
+| `max_connections` | `int` | 最大并发连接数 | `10` |
+| `session_timeout` | `int` | 会话超时时间（秒） | `3600` |
+| `enable_sessions` | `int` | 启用会话管理（0=关闭，1=开启） | `1` |
+| `auto_cleanup` | `int` | 自动清理过期会话（0=关闭，1=开启） | `1` |
 
 ### 参数描述 (`mcp_param_desc_t`)
 
@@ -369,21 +422,6 @@ typedef enum {
     EMBED_MCP_TRANSPORT_HTTP      // HTTP传输
 } embed_mcp_transport_t;
 ```
-
-
-
-## 测试与验证
-
-✅ **MCP Inspector兼容** - 通过所有协议合规性测试
-✅ **多会话测试** - 支持并发连接，会话隔离
-✅ **生产测试** - HTTP/STDIO传输，多种参数类型
-✅ **实际验证** - 我们使用自己的库（自用验证）
-
-
-
-
-## 构建和运行
-
 ### 构建示例（开发）
 
 对于开发和测试，您可以构建包含的示例：
@@ -407,11 +445,10 @@ make
 ./bin/mcp_server -t http -p 8080 -d
 ```
 
-**注意：** 我们的示例服务器是使用`embed_mcp/`库本身构建的，证明了库的正确性！
 
 示例服务器包含三个演示工具（使用`embed_mcp_add_tool`注册）：
 - `add(a, b)` - 两个数字相加（演示基础数学运算）
-- `weather(city)` - 获取天气信息（演示字符串处理，支持济南）
+- `weather(city)` - 获取天气信息（演示字符串处理）
 - `calculate_score(base_points, grade, multiplier)` - 计算带等级奖励的分数（演示混合参数类型）
 
 ### 使用MCP Inspector测试
@@ -422,28 +459,9 @@ make
 4. 连接到：`http://localhost:8080/mcp`
 
 
-## 重要注意事项
 
-### 多客户端支持
-**当前状态：** EmbedMCP目前支持单客户端场景。多客户端支持计划在未来版本中推出。
 
-**当前限制：**
-- 专为单客户端或顺序客户端访问设计
-- 并发客户端可能会相互干扰
-- 客户端之间没有会话隔离
 
-**解决方案：**
-- 使用反向代理/负载均衡器处理多个客户端
-- 运行多个EmbedMCP服务器实例
-- 确保一次只有一个客户端连接
-
-### 线程安全
-库安全地处理并发请求。如果您的工具函数访问共享资源，应该是无状态的或使用适当的同步。
-
-### 内存管理
-- **工具参数：** 由库自动管理
-- **返回值：** 您的函数应该为字符串和复杂类型返回malloc分配的内存
-- **简单类型：** 按值返回（double、int）或malloc分配的指针
 
 ### 错误处理
 始终检查返回值并使用 `embed_mcp_get_error()` 获取详细错误信息
@@ -452,16 +470,6 @@ make
 - **HTTP传输：** 最适合Web集成，支持多个并发客户端
 - **STDIO传输：** 最适合MCP客户端集成（Claude Desktop等）
 
-### 性能提示
-- 保持工具函数轻量和快速
-- 使用适当的参数类型（尽可能避免复杂的嵌套对象）
-- 考虑缓存昂贵的计算
-
-## 路线图
-
-- ✅ **v1.0** - 工具系统，MCP Inspector兼容，生产就绪
-- ✅ **v1.1** - 多会话支持，并发连接，会话管理
-- ✅ **v1.2** - HAL架构，跨平台支持，代码复用优化
 
 
 ## 贡献

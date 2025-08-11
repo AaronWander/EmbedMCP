@@ -279,11 +279,11 @@ mcp_capabilities_t *mcp_capabilities_create_default(void) {
     mcp_capabilities_t *capabilities = calloc(1, sizeof(mcp_capabilities_t));
     if (!capabilities) return NULL;
 
-    // Default server capabilities
-    capabilities->server.tools = true;
-    capabilities->server.resources = false;
-    capabilities->server.prompts = false;
-    capabilities->server.logging = true;
+    // Default server capabilities - start with nothing, enable as features are registered
+    capabilities->server.tools = false;        // Will be set to true when tools are registered
+    capabilities->server.resources = false;    // Will be set to true when resources are registered
+    capabilities->server.prompts = false;      // Will be set to true when prompts are registered
+    capabilities->server.logging = true;       // Always enabled for debugging
 
     // Default client capabilities
     capabilities->client.roots = false;
@@ -319,28 +319,34 @@ cJSON *mcp_capabilities_to_json(const mcp_capabilities_t *capabilities) {
     cJSON *json = cJSON_CreateObject();
     if (!json) return NULL;
 
-    // Server capabilities - according to MCP spec, these should be at root level
-    if (capabilities->server.tools) {
-        cJSON *tools = cJSON_CreateObject();
-        cJSON_AddBoolToObject(tools, "listChanged", true);
-        cJSON_AddItemToObject(json, "tools", tools);
-    }
-    if (capabilities->server.resources) {
-        cJSON *resources = cJSON_CreateObject();
-        cJSON_AddBoolToObject(resources, "listChanged", true);
-        cJSON_AddItemToObject(json, "resources", resources);
-    }
+    // experimental is optional according to official SDK
+
+    // Add prompts capability if enabled
     if (capabilities->server.prompts) {
         cJSON *prompts = cJSON_CreateObject();
         cJSON_AddBoolToObject(prompts, "listChanged", true);
         cJSON_AddItemToObject(json, "prompts", prompts);
     }
+
+    // Add resources capability if enabled
+    if (capabilities->server.resources) {
+        cJSON *resources = cJSON_CreateObject();
+        cJSON_AddBoolToObject(resources, "subscribe", false);
+        cJSON_AddBoolToObject(resources, "listChanged", true);
+        cJSON_AddItemToObject(json, "resources", resources);
+    }
+
+    // Add tools capability if enabled
+    if (capabilities->server.tools) {
+        cJSON *tools = cJSON_CreateObject();
+        cJSON_AddBoolToObject(tools, "listChanged", true);
+        cJSON_AddItemToObject(json, "tools", tools);
+    }
+
+    // Add logging capability if enabled
     if (capabilities->server.logging) {
         cJSON_AddItemToObject(json, "logging", cJSON_CreateObject());
     }
-
-    // Client capabilities (these are what the server expects from client)
-    // Usually not included in server's capability response
 
     return json;
 }
