@@ -471,4 +471,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**EmbedMCP** - Making MCP servers as simple as writing pure functions! 🚀
+**EmbedMCP** - Connecting Embedded Devices to Intelligence
