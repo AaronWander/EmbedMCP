@@ -3,6 +3,7 @@
 #include "transport/transport_interface.h"
 #include "tools/tool_registry.h"
 #include "tools/tool_interface.h"
+#include "tools/resource_registry.h"
 #include "application/session_manager.h"
 #include "hal/platform_hal.h"
 #include "hal/hal_common.h"
@@ -37,6 +38,7 @@ struct embed_mcp_server {
     mcp_protocol_t *protocol;
     mcp_transport_t *transport;
     mcp_tool_registry_t *tool_registry;
+    mcp_resource_registry_t *resource_registry;
     mcp_session_manager_t *session_manager;
     mcp_connection_t *current_connection;  // For backward compatibility
 
@@ -225,6 +227,33 @@ static int protocol_send_callback(const char *data, size_t length, void *user_da
     return mcp_connection_send(server->current_connection, data, length);
 }
 
+// Update dynamic capabilities based on registered features
+static void update_dynamic_capabilities(embed_mcp_server_t *server) {
+    if (!server || !server->protocol || !server->protocol->config || !server->protocol->config->capabilities) {
+        return;
+    }
+
+    mcp_capabilities_t *capabilities = server->protocol->config->capabilities;
+
+    // Update tools capability based on registered tools
+    if (server->tool_registry) {
+        size_t tool_count = mcp_tool_registry_get_tool_count(server->tool_registry);
+        capabilities->server.tools = (tool_count > 0);
+    }
+
+    // Update resources capability based on registered resources
+    if (server->resource_registry) {
+        size_t resource_count = mcp_resource_registry_count(server->resource_registry);
+        capabilities->server.resources = (resource_count > 0);
+    }
+
+    // Prompts capability - not implemented yet
+    capabilities->server.prompts = false;
+
+    // Logging is always available
+    capabilities->server.logging = true;
+}
+
 // Protocol request handler
 static cJSON *protocol_request_handler(const mcp_request_t *request, void *user_data) {
     embed_mcp_server_t *server = (embed_mcp_server_t*)user_data;
@@ -254,7 +283,66 @@ static cJSON *protocol_request_handler(const mcp_request_t *request, void *user_
         
         return mcp_tool_registry_call_tool(server->tool_registry, name->valuestring, arguments);
     }
-    
+
+    // Handle resources/list
+    if (strcmp(request->method, "resources/list") == 0) {
+        cJSON *resources = mcp_resource_registry_list_resources(server->resource_registry);
+        if (!resources) return NULL;
+
+        cJSON *result = cJSON_CreateObject();
+        cJSON_AddItemToObject(result, "resources", resources);
+        return result;
+    }
+
+    // Handle resources/read
+    if (strcmp(request->method, "resources/read") == 0) {
+        if (!request->params) return NULL;
+
+        cJSON *uri_json = cJSON_GetObjectItem(request->params, "uri");
+        if (!uri_json || !cJSON_IsString(uri_json)) return NULL;
+
+        const char *uri = uri_json->valuestring;
+        mcp_resource_content_t content;
+
+        if (mcp_resource_registry_read_resource(server->resource_registry, uri, &content) != 0) {
+            return NULL;
+        }
+
+        // Create response
+        cJSON *result = cJSON_CreateObject();
+        cJSON *contents_array = cJSON_CreateArray();
+        cJSON *content_obj = cJSON_CreateObject();
+
+        cJSON_AddStringToObject(content_obj, "uri", uri);
+        cJSON_AddStringToObject(content_obj, "mimeType", content.mime_type);
+
+        if (content.is_binary) {
+            // For binary data, we need to base64 encode it
+            // For now, just return an error for binary resources
+            cJSON_AddStringToObject(content_obj, "text", "[Binary content not supported yet]");
+        } else {
+            cJSON_AddStringToObject(content_obj, "text", (const char*)content.data);
+        }
+
+        cJSON_AddItemToArray(contents_array, content_obj);
+        cJSON_AddItemToObject(result, "contents", contents_array);
+
+        // Cleanup
+        mcp_resource_content_cleanup(&content);
+
+        return result;
+    }
+
+    // Handle resources/templates/list
+    if (strcmp(request->method, "resources/templates/list") == 0) {
+        // For now, return an empty list since we don't have parameterized resources
+        // This prevents errors in MCP Inspector
+        cJSON *result = cJSON_CreateObject();
+        cJSON *templates = cJSON_CreateArray();
+        cJSON_AddItemToObject(result, "resourceTemplates", templates);
+        return result;
+    }
+
     return NULL;
 }
 
@@ -376,6 +464,19 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config) {
         return NULL;
     }
 
+    // Create resource registry
+    server->resource_registry = mcp_resource_registry_create();
+    if (!server->resource_registry) {
+        embed_mcp_destroy(server);
+        set_error("Failed to create resource registry");
+        return NULL;
+    }
+
+    // Enable logging for resource registry if debug is enabled
+    if (server->debug) {
+        mcp_resource_registry_set_logging(server->resource_registry, 1);
+    }
+
     // Create protocol config with user settings
     mcp_protocol_config_t *protocol_config = mcp_protocol_config_create_default();
     if (protocol_config) {
@@ -405,6 +506,9 @@ embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config) {
     // Set protocol callbacks
     mcp_protocol_set_send_callback(server->protocol, protocol_send_callback, server);
     mcp_protocol_set_request_handler(server->protocol, protocol_request_handler, server);
+
+    // Update capabilities based on registered features
+    update_dynamic_capabilities(server);
 
     // Create session manager if enabled
     if (server->enable_sessions) {
@@ -456,6 +560,10 @@ void embed_mcp_destroy(embed_mcp_server_t *server) {
 
     if (server->tool_registry) {
         mcp_tool_registry_destroy(server->tool_registry);
+    }
+
+    if (server->resource_registry) {
+        mcp_resource_registry_destroy(server->resource_registry);
     }
 
     if (server->session_manager) {
@@ -1061,4 +1169,141 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
     }
 
     return 0;
+}
+
+// =============================================================================
+// Resource API Implementation
+// =============================================================================
+
+int embed_mcp_add_text_resource(embed_mcp_server_t *server,
+                                const char *uri,
+                                const char *name,
+                                const char *description,
+                                const char *mime_type,
+                                const char *content) {
+    if (!server || !server->resource_registry) {
+        set_error("Invalid server or resource registry not initialized");
+        return -1;
+    }
+
+    int result = mcp_resource_registry_add_text(server->resource_registry,
+                                               uri, name, description, mime_type, content);
+    if (result != 0) {
+        set_error("Failed to register text resource");
+        return -1;
+    }
+
+    // Update capabilities to reflect that we now have resources
+    update_dynamic_capabilities(server);
+
+    return 0;
+}
+
+int embed_mcp_add_binary_resource(embed_mcp_server_t *server,
+                                  const char *uri,
+                                  const char *name,
+                                  const char *description,
+                                  const char *mime_type,
+                                  const void *data,
+                                  size_t size) {
+    if (!server || !server->resource_registry) {
+        set_error("Invalid server or resource registry not initialized");
+        return -1;
+    }
+
+    int result = mcp_resource_registry_add_binary(server->resource_registry,
+                                                 uri, name, description, mime_type, data, size);
+    if (result != 0) {
+        set_error("Failed to register binary resource");
+        return -1;
+    }
+
+    // Update capabilities to reflect that we now have resources
+    update_dynamic_capabilities(server);
+
+    return 0;
+}
+
+int embed_mcp_add_file_resource(embed_mcp_server_t *server,
+                                const char *uri,
+                                const char *name,
+                                const char *description,
+                                const char *mime_type,
+                                const char *file_path) {
+    if (!server || !server->resource_registry) {
+        set_error("Invalid server or resource registry not initialized");
+        return -1;
+    }
+
+    int result = mcp_resource_registry_add_file(server->resource_registry,
+                                               uri, name, description, mime_type, file_path);
+    if (result != 0) {
+        set_error("Failed to register file resource");
+        return -1;
+    }
+
+    // Update capabilities to reflect that we now have resources
+    update_dynamic_capabilities(server);
+
+    return 0;
+}
+
+int embed_mcp_add_text_function_resource(embed_mcp_server_t *server,
+                                         const char *uri,
+                                         const char *name,
+                                         const char *description,
+                                         const char *mime_type,
+                                         embed_mcp_text_resource_function_t function,
+                                         void *user_data) {
+    if (!server || !server->resource_registry) {
+        set_error("Invalid server or resource registry not initialized");
+        return -1;
+    }
+
+    int result = mcp_resource_registry_add_text_function(server->resource_registry,
+                                                        uri, name, description, mime_type,
+                                                        (mcp_resource_text_function_t)function, user_data);
+    if (result != 0) {
+        set_error("Failed to register text function resource");
+        return -1;
+    }
+
+    // Update capabilities to reflect that we now have resources
+    update_dynamic_capabilities(server);
+
+    return 0;
+}
+
+int embed_mcp_add_binary_function_resource(embed_mcp_server_t *server,
+                                           const char *uri,
+                                           const char *name,
+                                           const char *description,
+                                           const char *mime_type,
+                                           embed_mcp_binary_resource_function_t function,
+                                           void *user_data) {
+    if (!server || !server->resource_registry) {
+        set_error("Invalid server or resource registry not initialized");
+        return -1;
+    }
+
+    int result = mcp_resource_registry_add_binary_function(server->resource_registry,
+                                                          uri, name, description, mime_type,
+                                                          (mcp_resource_binary_function_t)function, user_data);
+    if (result != 0) {
+        set_error("Failed to register binary function resource");
+        return -1;
+    }
+
+    // Update capabilities to reflect that we now have resources
+    update_dynamic_capabilities(server);
+
+    return 0;
+}
+
+size_t embed_mcp_get_resource_count(embed_mcp_server_t *server) {
+    if (!server || !server->resource_registry) {
+        return 0;
+    }
+
+    return mcp_resource_registry_count(server->resource_registry);
 }

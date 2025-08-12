@@ -79,6 +79,55 @@ int calculate_score(int base_points, char grade, double multiplier) {
     return final_score;
 }
 
+// =============================================================================
+// Resource Examples - Demonstrate MCP Resource System
+// =============================================================================
+
+// Example 1: Dynamic system status resource
+char* get_system_status(void *user_data) {
+    (void)user_data; // Unused
+
+    // Generate dynamic system status JSON
+    char *status = malloc(512);
+    if (!status) return NULL;
+
+    snprintf(status, 512,
+        "{\n"
+        "  \"timestamp\": \"2024-01-15T10:30:00Z\",\n"
+        "  \"system\": \"EmbedMCP Server\",\n"
+        "  \"status\": \"running\",\n"
+        "  \"uptime\": \"2h 15m\",\n"
+        "  \"memory_usage\": \"45MB\",\n"
+        "  \"cpu_usage\": \"12%%\",\n"
+        "  \"active_connections\": 1,\n"
+        "  \"tools_registered\": 3,\n"
+        "  \"resources_registered\": 4\n"
+        "}"
+    );
+
+    return status;
+}
+
+// Example 2: Dynamic configuration resource
+char* get_server_config(void *user_data) {
+    (void)user_data; // Unused
+
+    char *config = malloc(256);
+    if (!config) return NULL;
+
+    snprintf(config, 256,
+        "{\n"
+        "  \"server_name\": \"EmbedMCP-RaspberryPi\",\n"
+        "  \"version\": \"1.0.0\",\n"
+        "  \"transport\": \"HTTP\",\n"
+        "  \"port\": 9943,\n"
+        "  \"debug_mode\": true,\n"
+        "  \"max_connections\": 10\n"
+        "}"
+    );
+
+    return config;
+}
 
 void print_usage(const char *program_name) {
     printf("Usage: %s [OPTIONS]\n", program_name);
@@ -231,10 +280,68 @@ int main(int argc, char *argv[]) {
         printf("Registered calculate_score(int, char, double) -> int\n");
     }
 
+    // =============================================================================
+    // Register Resources - Demonstrate MCP Resource System
+    // =============================================================================
 
+    printf("\n=== Registering Resources ===\n");
 
+    // Example 1: Static text resource
+    if (embed_mcp_add_text_resource(server, "config://readme", "README",
+                                    "Project README file", "text/markdown",
+                                    "# EmbedMCP Example Server\n\n"
+                                    "This is an example MCP server built with EmbedMCP.\n\n"
+                                    "## Available Tools\n"
+                                    "- add(a, b) - Add two numbers\n"
+                                    "- weather(city) - Get weather info\n"
+                                    "- calculate_score(base, grade, multiplier) - Calculate score\n\n"
+                                    "## Available Resources\n"
+                                    "- config://readme - This README\n"
+                                    "- status://system - Dynamic system status\n"
+                                    "- config://server - Server configuration\n"
+                                    "- file://example.txt - Example text file\n") != 0) {
+        printf("Failed to register README resource: %s\n", embed_mcp_get_error());
+    } else {
+        printf("✅ Registered README resource (config://readme)\n");
+    }
 
-    
+    // Example 2: Dynamic function resource (system status)
+    if (embed_mcp_add_text_function_resource(server, "status://system", "System Status",
+                                             "Real-time system status information", "application/json",
+                                             get_system_status, NULL) != 0) {
+        printf("Failed to register system status resource: %s\n", embed_mcp_get_error());
+    } else {
+        printf("✅ Registered system status resource (status://system)\n");
+    }
+
+    // Example 3: Dynamic function resource (server config)
+    if (embed_mcp_add_text_function_resource(server, "config://server", "Server Configuration",
+                                             "Current server configuration", "application/json",
+                                             get_server_config, NULL) != 0) {
+        printf("Failed to register server config resource: %s\n", embed_mcp_get_error());
+    } else {
+        printf("✅ Registered server config resource (config://server)\n");
+    }
+
+    // Example 4: File resource (if file exists)
+    const char *example_file = "/tmp/embedmcp_example.txt";
+    FILE *f = fopen(example_file, "w");
+    if (f) {
+        fprintf(f, "This is an example text file created by EmbedMCP.\n");
+        fprintf(f, "It demonstrates file resource functionality.\n");
+        fprintf(f, "Timestamp: 2024-01-15 10:30:00\n");
+        fclose(f);
+
+        if (embed_mcp_add_file_resource(server, "file://example.txt", "Example File",
+                                       "Example text file", NULL, example_file) != 0) {
+            printf("Failed to register file resource: %s\n", embed_mcp_get_error());
+        } else {
+            printf("✅ Registered file resource (file://example.txt)\n");
+        }
+    }
+
+    printf("📊 Total resources registered: %zu\n", embed_mcp_get_resource_count(server));
+
     // Run server
     printf("EmbedMCP Example Server starting with %s transport...\n", transport_type);
     if (strcmp(transport_type, "http") == 0) {
@@ -244,12 +351,32 @@ int main(int argc, char *argv[]) {
         printf("  • sum_array(numbers[]) - Sum array of numbers (demonstrates array handling)\n");
         printf("  • weather(city) - Get weather info (supports: Jinan/济南)\n");
         printf("  • calculate_score(base, grade, multiplier) - Calculate score with grade bonus\n");
+
+        printf("\nExample resources available:\n");
+        printf("  • config://readme - Project README (static text)\n");
+        printf("  • status://system - System status (dynamic JSON)\n");
+        printf("  • config://server - Server configuration (dynamic JSON)\n");
+        printf("  • file://example.txt - Example text file (file resource)\n");
+
         printf("\nTry these in MCP Inspector, Dify, or with curl!\n");
-        printf("Example curl test:\n");
+        printf("Example curl tests:\n");
+        printf("  # List tools:\n");
         printf("  curl -X POST http://%s:%d%s \\\n",
                strcmp(bind_address, "0.0.0.0") == 0 ? "localhost" : bind_address, port, endpoint_path);
         printf("       -H 'Content-Type: application/json' \\\n");
         printf("       -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}'\n");
+        printf("  \n");
+        printf("  # List resources:\n");
+        printf("  curl -X POST http://%s:%d%s \\\n",
+               strcmp(bind_address, "0.0.0.0") == 0 ? "localhost" : bind_address, port, endpoint_path);
+        printf("       -H 'Content-Type: application/json' \\\n");
+        printf("       -d '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"resources/list\"}'\n");
+        printf("  \n");
+        printf("  # Read a resource:\n");
+        printf("  curl -X POST http://%s:%d%s \\\n",
+               strcmp(bind_address, "0.0.0.0") == 0 ? "localhost" : bind_address, port, endpoint_path);
+        printf("       -H 'Content-Type: application/json' \\\n");
+        printf("       -d '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"resources/read\",\"params\":{\"uri\":\"status://system\"}}'\n");
     }
     
 
