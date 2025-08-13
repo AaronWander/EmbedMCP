@@ -257,10 +257,15 @@ static void update_dynamic_capabilities(embed_mcp_server_t *server) {
 // Protocol request handler
 static cJSON *protocol_request_handler(const mcp_request_t *request, void *user_data) {
     embed_mcp_server_t *server = (embed_mcp_server_t*)user_data;
-    
+
     if (!server || !request || !request->method) {
+        printf("[DEBUG] Invalid request parameters\n");
+        fflush(stdout);
         return NULL;
     }
+
+    printf("[DEBUG] Handling request: %s\n", request->method);
+    fflush(stdout);
     
     // Handle tools/list
     if (strcmp(request->method, "tools/list") == 0) {
@@ -286,8 +291,18 @@ static cJSON *protocol_request_handler(const mcp_request_t *request, void *user_
 
     // Handle resources/list
     if (strcmp(request->method, "resources/list") == 0) {
+        printf("[DEBUG] Handling resources/list request\n");
+        fflush(stdout);
+
         cJSON *resources = mcp_resource_registry_list_resources(server->resource_registry);
-        if (!resources) return NULL;
+        if (!resources) {
+            printf("[DEBUG] mcp_resource_registry_list_resources returned NULL\n");
+            fflush(stdout);
+            return NULL;
+        }
+
+        printf("[DEBUG] Creating result object for resources/list\n");
+        fflush(stdout);
 
         cJSON *result = cJSON_CreateObject();
         cJSON_AddItemToObject(result, "resources", resources);
@@ -304,7 +319,15 @@ static cJSON *protocol_request_handler(const mcp_request_t *request, void *user_
         const char *uri = uri_json->valuestring;
         mcp_resource_content_t content;
 
-        if (mcp_resource_registry_read_resource(server->resource_registry, uri, &content) != 0) {
+        // Try static resources first
+        int read_result = mcp_resource_registry_read_resource(server->resource_registry, uri, &content);
+
+        // If static resource not found, try resource templates
+        if (read_result != 0) {
+            read_result = mcp_resource_registry_read_template(server->resource_registry, uri, &content);
+        }
+
+        if (read_result != 0) {
             return NULL;
         }
 
@@ -335,10 +358,20 @@ static cJSON *protocol_request_handler(const mcp_request_t *request, void *user_
 
     // Handle resources/templates/list
     if (strcmp(request->method, "resources/templates/list") == 0) {
-        // For now, return an empty list since we don't have parameterized resources
-        // This prevents errors in MCP Inspector
+        printf("[DEBUG] Handling resources/templates/list request\n");
+        fflush(stdout);
+
+        cJSON *templates = mcp_resource_registry_list_templates(server->resource_registry);
+        if (!templates) {
+            printf("[DEBUG] mcp_resource_registry_list_templates returned NULL\n");
+            fflush(stdout);
+            return NULL;
+        }
+
+        printf("[DEBUG] Creating result object for resources/templates/list\n");
+        fflush(stdout);
+
         cJSON *result = cJSON_CreateObject();
-        cJSON *templates = cJSON_CreateArray();
         cJSON_AddItemToObject(result, "resourceTemplates", templates);
         return result;
     }
@@ -1306,4 +1339,34 @@ size_t embed_mcp_get_resource_count(embed_mcp_server_t *server) {
     }
 
     return mcp_resource_registry_count(server->resource_registry);
+}
+
+// =============================================================================
+// Resource Templates API Implementation
+// =============================================================================
+
+int embed_mcp_add_resource_template(embed_mcp_server_t *server, mcp_resource_template_t *template) {
+    if (!server || !server->resource_registry || !template) {
+        set_error("Invalid parameters for resource template registration");
+        return -1;
+    }
+
+    int result = mcp_resource_registry_add_template(server->resource_registry, template);
+    if (result != 0) {
+        set_error("Failed to register resource template");
+        return -1;
+    }
+
+    // Update capabilities to reflect new templates
+    update_dynamic_capabilities(server);
+
+    return 0;
+}
+
+size_t embed_mcp_get_resource_template_count(embed_mcp_server_t *server) {
+    if (!server || !server->resource_registry) {
+        return 0;
+    }
+
+    return mcp_resource_registry_template_count(server->resource_registry);
 }

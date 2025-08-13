@@ -342,6 +342,59 @@ int main(int argc, char *argv[]) {
 
     printf("📊 Total resources registered: %zu\n", embed_mcp_get_resource_count(server));
 
+    // =============================================================================
+    // Register Resource Templates - Demonstrate Dynamic File Access
+    // =============================================================================
+
+    printf("\n=== Registering Resource Templates ===\n");
+
+    // Initialize file resource system
+    mcp_file_resource_init();
+
+    // Create project files template
+    mcp_resource_template_t *project_template = mcp_resource_template_create(
+        "file:///./{path}",
+        "Project Files",
+        "Project Files",
+        "Access files in the current project directory",
+        "application/octet-stream"
+    );
+
+    if (project_template) {
+        mcp_resource_template_add_parameter(project_template, "path", "File path relative to project root", 1);
+        mcp_resource_template_set_handler(project_template, mcp_file_resource_handler, NULL);
+
+        if (embed_mcp_add_resource_template(server, project_template) == 0) {
+            printf("✅ Registered project files template (file:///./{path})\n");
+        } else {
+            printf("❌ Failed to register project files template\n");
+            mcp_resource_template_destroy(project_template);
+        }
+    }
+
+    // Create examples template
+    mcp_resource_template_t *examples_template = mcp_resource_template_create(
+        "file:///./examples/{path}",
+        "Example Files",
+        "Example Files",
+        "Access example source files",
+        "application/octet-stream"
+    );
+
+    if (examples_template) {
+        mcp_resource_template_add_parameter(examples_template, "path", "File path relative to examples directory", 1);
+        mcp_resource_template_set_handler(examples_template, mcp_file_resource_handler, NULL);
+
+        if (embed_mcp_add_resource_template(server, examples_template) == 0) {
+            printf("✅ Registered examples template (file:///./examples/{path})\n");
+        } else {
+            printf("❌ Failed to register examples template\n");
+            mcp_resource_template_destroy(examples_template);
+        }
+    }
+
+    printf("📊 Total resource templates registered: %zu\n", embed_mcp_get_resource_template_count(server));
+
     // Run server
     printf("EmbedMCP Example Server starting with %s transport...\n", transport_type);
     if (strcmp(transport_type, "http") == 0) {

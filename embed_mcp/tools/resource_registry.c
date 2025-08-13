@@ -43,18 +43,22 @@ static const char *detect_mime_type(const char *file_path) {
 mcp_resource_registry_t *mcp_resource_registry_create(void) {
     mcp_resource_registry_t *registry = calloc(1, sizeof(mcp_resource_registry_t));
     if (!registry) return NULL;
-    
+
     registry->resources = NULL;
     registry->count = 0;
     registry->enable_logging = 0;
-    
+
+    // Initialize templates
+    registry->templates = NULL;
+    registry->template_count = 0;
+
     return registry;
 }
 
 // Destroy a resource registry
 void mcp_resource_registry_destroy(mcp_resource_registry_t *registry) {
     if (!registry) return;
-    
+
     // Free all resources
     mcp_resource_desc_t *current = registry->resources;
     while (current) {
@@ -62,7 +66,15 @@ void mcp_resource_registry_destroy(mcp_resource_registry_t *registry) {
         mcp_resource_desc_destroy(current);
         current = next;
     }
-    
+
+    // Free all templates
+    mcp_resource_template_t *template_current = registry->templates;
+    while (template_current) {
+        mcp_resource_template_t *template_next = template_current->next;
+        mcp_resource_template_destroy(template_current);
+        template_current = template_next;
+    }
+
     free(registry);
 }
 
@@ -282,4 +294,142 @@ void mcp_resource_registry_set_logging(mcp_resource_registry_t *registry, int en
     if (registry) {
         registry->enable_logging = enable;
     }
+}
+
+// =============================================================================
+// Resource Templates Implementation
+// =============================================================================
+
+int mcp_resource_registry_add_template(mcp_resource_registry_t *registry,
+                                       mcp_resource_template_t *template) {
+    if (!registry || !template) {
+        return -1;
+    }
+
+    // Check for duplicate template name
+    mcp_resource_template_t *current = registry->templates;
+    while (current) {
+        if (strcmp(current->name, template->name) == 0) {
+            if (registry->enable_logging) {
+                fprintf(stderr, "[RESOURCE] Warning: Template with name '%s' already exists\n", template->name);
+            }
+            return -1;
+        }
+        current = current->next;
+    }
+
+    // Add to linked list
+    template->next = registry->templates;
+    registry->templates = template;
+    registry->template_count++;
+
+    if (registry->enable_logging) {
+        printf("✅ Registered %s template (%s)\n", template->name, template->uri_template);
+    }
+
+    return 0;
+}
+
+size_t mcp_resource_registry_template_count(mcp_resource_registry_t *registry) {
+    return registry ? registry->template_count : 0;
+}
+
+cJSON *mcp_resource_registry_list_templates(mcp_resource_registry_t *registry) {
+    if (!registry) return NULL;
+
+    cJSON *templates_array = cJSON_CreateArray();
+    if (!templates_array) return NULL;
+
+    mcp_resource_template_t *current = registry->templates;
+    while (current) {
+        cJSON *template_obj = cJSON_CreateObject();
+        if (!template_obj) {
+            cJSON_Delete(templates_array);
+            return NULL;
+        }
+
+        cJSON_AddStringToObject(template_obj, "uriTemplate", current->uri_template);
+        cJSON_AddStringToObject(template_obj, "name", current->name);
+        if (current->title) {
+            cJSON_AddStringToObject(template_obj, "title", current->title);
+        }
+        if (current->description) {
+            cJSON_AddStringToObject(template_obj, "description", current->description);
+        }
+        if (current->mime_type) {
+            cJSON_AddStringToObject(template_obj, "mimeType", current->mime_type);
+        }
+
+        cJSON_AddItemToArray(templates_array, template_obj);
+        current = current->next;
+    }
+
+    return templates_array;
+}
+
+mcp_resource_template_t *mcp_resource_registry_find_template(mcp_resource_registry_t *registry,
+                                                             const char *uri) {
+    if (!registry || !uri) return NULL;
+
+    mcp_resource_template_t *current = registry->templates;
+    while (current) {
+        if (mcp_resource_template_matches_uri(current->uri_template, uri)) {
+            return current;
+        }
+        current = current->next;
+    }
+
+    return NULL;
+}
+
+int mcp_resource_registry_read_template(mcp_resource_registry_t *registry,
+                                        const char *uri,
+                                        mcp_resource_content_t *content) {
+    if (!registry || !uri || !content) {
+        return -1;
+    }
+
+    mcp_resource_template_t *template = mcp_resource_registry_find_template(registry, uri);
+    if (!template || !template->handler) {
+        return -1;
+    }
+
+    // Parse URI parameters
+    char **param_names = NULL;
+    char **param_values = NULL;
+    size_t param_count = 0;
+
+    int parse_result = mcp_resource_template_parse_uri(template->uri_template, uri,
+                                                       &param_names, &param_values, &param_count);
+    if (parse_result != 0) {
+        return -1;
+    }
+
+    // Create context
+    mcp_resource_template_context_t context = {
+        .resolved_uri = uri,
+        .param_names = param_names,
+        .param_values = param_values,
+        .param_count = param_count,
+        .user_data = template->user_data
+    };
+
+    // Call handler
+    int result = template->handler(&context, content);
+
+    // Clean up parameters
+    if (param_names) {
+        for (size_t i = 0; i < param_count; i++) {
+            free(param_names[i]);
+        }
+        free(param_names);
+    }
+    if (param_values) {
+        for (size_t i = 0; i < param_count; i++) {
+            free(param_values[i]);
+        }
+        free(param_values);
+    }
+
+    return result;
 }

@@ -1,0 +1,3 @@
+Hello from Resource Templates!
+This is a test file to demonstrate dynamic file access.
+Resource Templates allow MCP clients to access files dynamically using URI patterns.

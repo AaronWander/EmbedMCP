@@ -15,6 +15,10 @@ struct mcp_resource_registry {
     mcp_resource_desc_t *resources;  // Linked list of resources
     size_t count;                    // Number of registered resources
     int enable_logging;              // Enable debug logging
+
+    // Resource Templates support
+    mcp_resource_template_t *templates;  // Linked list of templates
+    size_t template_count;               // Number of registered templates
 };
 
 /**
@@ -159,6 +163,53 @@ int mcp_resource_registry_read_resource(mcp_resource_registry_t *registry,
  * @param enable 1 to enable logging, 0 to disable
  */
 void mcp_resource_registry_set_logging(mcp_resource_registry_t *registry, int enable);
+
+// =============================================================================
+// Resource Templates Support
+// =============================================================================
+
+/**
+ * Register a resource template
+ * @param registry Resource registry
+ * @param template Resource template (ownership transferred to registry)
+ * @return 0 on success, -1 on error
+ */
+int mcp_resource_registry_add_template(mcp_resource_registry_t *registry,
+                                       mcp_resource_template_t *template);
+
+/**
+ * List all registered resource templates
+ * @param registry Resource registry
+ * @return JSON array of templates (caller must free), or NULL on error
+ */
+cJSON *mcp_resource_registry_list_templates(mcp_resource_registry_t *registry);
+
+/**
+ * Get count of registered templates
+ * @param registry Resource registry
+ * @return Number of templates
+ */
+size_t mcp_resource_registry_template_count(mcp_resource_registry_t *registry);
+
+/**
+ * Find a template that matches the given URI
+ * @param registry Resource registry
+ * @param uri URI to match
+ * @return Matching template, or NULL if not found
+ */
+mcp_resource_template_t *mcp_resource_registry_find_template(mcp_resource_registry_t *registry,
+                                                             const char *uri);
+
+/**
+ * Read content using a resource template
+ * @param registry Resource registry
+ * @param uri URI to resolve
+ * @param content Output content structure
+ * @return 0 on success, -1 on error
+ */
+int mcp_resource_registry_read_template(mcp_resource_registry_t *registry,
+                                        const char *uri,
+                                        mcp_resource_content_t *content);
 
 #ifdef __cplusplus
 }

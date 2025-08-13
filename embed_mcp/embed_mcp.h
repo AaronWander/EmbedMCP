@@ -13,6 +13,9 @@
     #include "cjson/cJSON.h"
 #endif
 
+// Resource interface for templates
+#include "tools/resource_interface.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -485,6 +488,31 @@ int embed_mcp_add_binary_function_resource(embed_mcp_server_t *server,
  * @return Number of resources, or 0 if server is NULL
  */
 size_t embed_mcp_get_resource_count(embed_mcp_server_t *server);
+
+// =============================================================================
+// Resource Templates API
+// =============================================================================
+
+/**
+ * Add a resource template to the server
+ * @param server Server instance
+ * @param template Resource template (ownership transferred to server)
+ * @return 0 on success, -1 on error
+ */
+int embed_mcp_add_resource_template(embed_mcp_server_t *server, mcp_resource_template_t *template);
+
+/**
+ * Get the number of registered resource templates
+ * @param server Server instance
+ * @return Number of templates, or 0 if server is NULL
+ */
+size_t embed_mcp_get_resource_template_count(embed_mcp_server_t *server);
+
+// Forward declarations for file resource handler
+void mcp_file_resource_init(void);
+void mcp_file_resource_cleanup(void);
+int mcp_file_resource_handler(const mcp_resource_template_context_t *context,
+                              mcp_resource_content_t *content);
 
 #ifdef __cplusplus
 }

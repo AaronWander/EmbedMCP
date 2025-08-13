@@ -125,6 +125,96 @@ void mcp_resource_desc_destroy(mcp_resource_desc_t *resource);
  */
 int mcp_resource_read_content(const mcp_resource_desc_t *resource, mcp_resource_content_t *content);
 
+// =============================================================================
+// Resource Templates Support
+// =============================================================================
+
+/**
+ * Resource template parameter definition
+ */
+typedef struct {
+    char *name;           // Parameter name
+    char *description;    // Parameter description (optional)
+    int required;         // 1 if required, 0 if optional
+} mcp_resource_template_param_t;
+
+/**
+ * Context passed to resource template handlers
+ */
+typedef struct {
+    const char *resolved_uri;     // The resolved URI with parameters filled in
+    char **param_names;           // Array of parameter names
+    char **param_values;          // Array of parameter values
+    size_t param_count;           // Number of parameters
+    void *user_data;              // User-provided data
+} mcp_resource_template_context_t;
+
+/**
+ * Resource template structure
+ */
+typedef struct mcp_resource_template {
+    char *uri_template;           // URI template with {param} placeholders
+    char *name;                   // Template name
+    char *title;                  // Template title (optional)
+    char *description;            // Template description (optional)
+    char *mime_type;              // Default MIME type (optional)
+
+    // Parameters
+    mcp_resource_template_param_t *parameters;
+    size_t parameter_count;
+
+    // Handler function
+    int (*handler)(const mcp_resource_template_context_t *context,
+                   mcp_resource_content_t *content);
+    void *user_data;              // User data passed to handler
+
+    struct mcp_resource_template *next;  // Linked list
+} mcp_resource_template_t;
+
+/**
+ * Create a new resource template
+ */
+mcp_resource_template_t *mcp_resource_template_create(const char *uri_template,
+                                                      const char *name,
+                                                      const char *title,
+                                                      const char *description,
+                                                      const char *mime_type);
+
+/**
+ * Destroy a resource template
+ */
+void mcp_resource_template_destroy(mcp_resource_template_t *template);
+
+/**
+ * Add a parameter to a resource template
+ */
+int mcp_resource_template_add_parameter(mcp_resource_template_t *template,
+                                        const char *name,
+                                        const char *description,
+                                        int required);
+
+/**
+ * Set the handler function for a resource template
+ */
+void mcp_resource_template_set_handler(mcp_resource_template_t *template,
+                                       int (*handler)(const mcp_resource_template_context_t *context,
+                                                      mcp_resource_content_t *content),
+                                       void *user_data);
+
+/**
+ * Check if a URI matches a template
+ */
+int mcp_resource_template_matches_uri(const char *uri_template, const char *uri);
+
+/**
+ * Parse URI against template and extract parameters
+ */
+int mcp_resource_template_parse_uri(const char *uri_template,
+                                    const char *resolved_uri,
+                                    char ***param_names,
+                                    char ***param_values,
+                                    size_t *param_count);
+
 #ifdef __cplusplus
 }
 #endif
