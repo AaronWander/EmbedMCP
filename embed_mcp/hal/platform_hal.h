@@ -55,38 +55,114 @@ typedef struct {
     void (*delay_us)(uint32_t us);
 } mcp_platform_time_t;
 
-// 传输类型 - 扩展现有的传输类型
-// 注意：基础传输类型在transport_interface.h中定义
+// HAL网络类型
 typedef enum {
-    MCP_HAL_TRANSPORT_UART = 100,  // 避免与现有类型冲突
-    MCP_HAL_TRANSPORT_SPI,
-    MCP_HAL_TRANSPORT_CAN,
-    MCP_HAL_TRANSPORT_USB,
-    MCP_HAL_TRANSPORT_AUTO
-} mcp_hal_transport_type_t;
+    MCP_HAL_NET_TCP,               // TCP网络
+    MCP_HAL_NET_UDP,               // UDP网络
+    MCP_HAL_NET_UART,              // UART串口
+    MCP_HAL_NET_SPI,               // SPI总线
+    MCP_HAL_NET_CAN,               // CAN总线
+    MCP_HAL_NET_USB                // USB接口
+} mcp_hal_network_type_t;
 
-// 传输接口
+// 网络连接句柄
+typedef void* mcp_hal_connection_handle_t;
+
+// 网络地址结构
 typedef struct {
-    int (*init)(mcp_hal_transport_type_t type, void* config);
-    int (*send)(const void* data, size_t len);
-    int (*recv)(void* buffer, size_t max_len);
-    int (*poll)(void);
-    int (*close)(void);
-    bool (*is_connected)(void);
-} mcp_platform_transport_t;
+    uint32_t ip;                   // IP地址 (网络字节序)
+    uint16_t port;                 // 端口号
+    char hostname[256];            // 主机名 (可选)
+} mcp_hal_network_address_t;
+
+// 网络事件类型
+typedef enum {
+    MCP_HAL_NET_EVENT_CONNECTED,    // 新连接建立
+    MCP_HAL_NET_EVENT_DATA,         // 数据到达
+    MCP_HAL_NET_EVENT_DISCONNECTED, // 连接断开
+    MCP_HAL_NET_EVENT_ERROR         // 网络错误
+} mcp_hal_network_event_type_t;
+
+// 网络事件结构
+typedef struct {
+    mcp_hal_network_event_type_t type;
+    mcp_hal_connection_handle_t connection;
+    const void* data;
+    size_t data_length;
+    int error_code;                // 错误代码 (仅用于ERROR事件)
+} mcp_hal_network_event_t;
+
+// 网络事件回调函数
+typedef void (*mcp_hal_network_event_callback_t)(const mcp_hal_network_event_t* event, void* user_data);
+
+// 网络配置结构
+typedef struct {
+    mcp_hal_network_type_t type;   // 网络类型
+    const char* bind_address;      // 绑定地址
+    uint16_t port;                 // 端口号
+    mcp_hal_network_event_callback_t callback; // 事件回调
+    void* user_data;               // 用户数据
+} mcp_hal_network_config_t;
+
+// HAL网络接口 - 以mongoose为核心的统一抽象
+typedef void* mcp_hal_connection_t;  // 连接句柄 (mongoose connection)
+typedef void* mcp_hal_server_t;      // 服务器句柄 (mongoose server)
+
+// HTTP请求结构 (基于mongoose)
+typedef struct {
+    const char* method;
+    const char* uri;
+    const char* body;
+    size_t body_len;
+    mcp_hal_connection_t connection;
+} mcp_hal_http_request_t;
+
+// HTTP响应结构
+typedef struct {
+    int status_code;
+    const char* headers;
+    const char* body;
+    size_t body_len;
+} mcp_hal_http_response_t;
+
+// HTTP事件回调
+typedef void (*mcp_hal_http_handler_t)(const mcp_hal_http_request_t* request,
+                                      mcp_hal_http_response_t* response,
+                                      void* user_data);
+
+// HAL网络接口 - 通用的网络抽象接口
+// 注意：使用通用名称，底层可以是mongoose、lwIP、或其他网络库
+typedef struct {
+    // HTTP服务器接口 - 通用接口名称
+    mcp_hal_server_t (*http_server_start)(const char* url, mcp_hal_http_handler_t handler, void* user_data);
+    int (*http_response_send)(mcp_hal_connection_t conn, const mcp_hal_http_response_t* response);
+
+    // 网络事件轮询 - 通用接口名称
+    int (*network_poll)(int timeout_ms);
+
+    // 服务器管理 - 通用接口名称
+    int (*http_server_stop)(mcp_hal_server_t server);
+
+    // 底层网络接口 (用于不支持高级HTTP库的平台)
+    int (*socket_create)(int domain, int type, int protocol);
+    int (*socket_bind)(int sockfd, const char* address, uint16_t port);
+    int (*socket_send)(int sockfd, const void* data, size_t len);
+    int (*socket_recv)(int sockfd, void* buffer, size_t max_len);
+    int (*socket_close)(int sockfd);
+} mcp_platform_network_t;
 
 // 完整的平台HAL
 typedef struct {
     const char* platform_name;
     const char* version;
     mcp_platform_capabilities_t capabilities;
-    
+
     mcp_platform_memory_t memory;
     mcp_platform_thread_t thread;
     mcp_platform_sync_t sync;
     mcp_platform_time_t time;
-    mcp_platform_transport_t transport;
-    
+    mcp_platform_network_t network;  // 使用网络接口而不是传输接口
+
     // 平台初始化和清理
     int (*init)(void);
     void (*cleanup)(void);

@@ -1,5 +1,4 @@
 #include "transport/http_transport.h"
-#include "../platform/platform_http_interface.h"
 #include "hal/platform_hal.h"
 #include "utils/logging.h"
 #include "protocol/message.h"
@@ -8,67 +7,63 @@
 #include <string.h>
 #include <ctype.h>
 
-// MCP 协议处理函数
-static int handle_mcp_request(const mcp_platform_http_request_t* request,
-                             mcp_platform_http_response_t* response,
-                             void* user_data) {
+// HTTP请求处理函数 - 通过HAL接口
+static void http_request_handler(const mcp_hal_http_request_t* request,
+                                mcp_hal_http_response_t* response,
+                                void* user_data) {
     mcp_http_transport_data_t* data = (mcp_http_transport_data_t*)user_data;
-    if (!data || !data->transport) {
-        mcp_log_error("HTTP Transport: Invalid user data in request handler");
-        return -1;
-    }
 
-    mcp_log_debug("HTTP Transport: Handling %s request to %s", request->method, request->url);
+    mcp_log_debug("HTTP Transport: Received %s request to %s", request->method, request->uri);
 
-    // 处理 notifications/initialized
-    if (strcmp(request->method, "POST") == 0 && request->body) {
-        // 检查是否为通知
-        if (strstr(request->body, "notifications/initialized")) {
+    // 检查是否为POST请求到/mcp端点
+    if (strcmp(request->method, "POST") == 0 && strcmp(request->uri, "/mcp") == 0) {
+
+        // 处理notifications/initialized
+        if (request->body && strstr(request->body, "notifications/initialized")) {
             mcp_log_debug("HTTP Transport: Received notifications/initialized");
-            response->status_code = 202;  // HTTP 202 Accepted
-            response->content_type = "application/json";
+            response->status_code = 202;
+            response->headers = "Content-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\n";
             response->body = "";
-            response->body_length = 0;
-            response->close_connection = true;
-            return 0;
+            response->body_len = 0;
+            return;
         }
 
-        // 检查是否为 initialize 或其他 MCP 请求
-        if (strstr(request->body, "\"method\"")) {
+        // 检查是否为MCP请求
+        if (request->body && strstr(request->body, "\"method\"")) {
             // 创建连接对象
             mcp_connection_t* connection = calloc(1, sizeof(mcp_connection_t));
-            if (connection) {
-                connection->transport = data->transport;
-                connection->is_active = true;
-                connection->created_time = time(NULL);
-                connection->last_activity = time(NULL);
-                connection->private_data = (void*)request->platform_connection;
-
-                // 调用消息接收回调
-                if (data->transport->on_message) {
-                    data->transport->on_message(request->body, request->body_length, connection, data->transport->user_data);
-                }
-
-                // 不在这里设置响应，让 send 函数处理
-                response->status_code = 0;  // 标记为延迟响应
-                response->content_type = NULL;
-                response->body = NULL;
-                response->body_length = 0;
-                response->close_connection = false;
-
-                free(connection);
-                return 0;
+            if (!connection) {
+                mcp_log_error("HTTP Transport: Failed to allocate connection");
+                response->status_code = 500;
+                response->headers = "Content-Type: application/json\r\n";
+                response->body = "{\"error\":\"Internal server error\"}";
+                response->body_len = strlen(response->body);
+                return;
             }
+
+            // 初始化连接对象
+            connection->transport = data->transport;
+            connection->is_active = true;
+            connection->created_time = time(NULL);
+            connection->last_activity = time(NULL);
+            connection->private_data = (void*)request->connection;  // 保存HAL连接
+
+            // 调用消息接收回调
+            if (data->transport->on_message) {
+                data->transport->on_message(request->body, request->body_len, connection, data->transport->user_data);
+            }
+
+            // 延迟响应 - 不设置响应内容，等待send函数调用
+            response->status_code = 0;  // 特殊标记表示延迟响应
+            return;
         }
     }
 
-    // 默认响应
+    // 默认404响应
     response->status_code = 404;
-    response->content_type = "text/plain";
+    response->headers = "Content-Type: text/plain\r\n";
     response->body = "Not Found";
-    response->body_length = strlen(response->body);
-    response->close_connection = true;
-    return 0;
+    response->body_len = strlen(response->body);
 }
 
 // HTTP transport interface implementation
@@ -95,10 +90,10 @@ int mcp_http_transport_init_impl(mcp_transport_t *transport, const mcp_transport
         return -1;
     }
 
-    // 获取平台 HTTP 接口
-    data->platform_interface = mcp_platform_get_http_interface();
-    if (!data->platform_interface) {
-        mcp_log_error("HTTP Transport: No platform HTTP interface available");
+    // 获取HAL接口
+    data->hal = mcp_platform_get_hal();
+    if (!data->hal) {
+        mcp_log_error("HTTP Transport: No platform HAL available");
         free(data);
         return -1;
     }
@@ -121,19 +116,10 @@ int mcp_http_transport_init_impl(mcp_transport_t *transport, const mcp_transport
     data->server_running = false;
     data->transport = transport;
 
-    // 初始化平台 HTTP 接口
-    if (data->platform_interface->init && data->platform_interface->init(config, data) < 0) {
-        mcp_log_error("HTTP Transport: Platform interface init failed");
-        free(data->bind_address);
-        free(data);
-        return -1;
-    }
-
     transport->private_data = data;
     transport->state = MCP_TRANSPORT_STATE_STOPPED;
 
-    mcp_log_info("HTTP Transport: Initialized with platform: %s",
-                 data->platform_interface->platform_name);
+    mcp_log_info("HTTP Transport: Initialized on %s:%d", data->bind_address, data->port);
     return 0;
 }
 
@@ -150,26 +136,21 @@ int mcp_http_transport_start_impl(mcp_transport_t *transport) {
         return 0;
     }
 
-    // 设置请求处理器
-    if (data->platform_interface->set_handler) {
-        const char* path = data->endpoint_path ? data->endpoint_path : "/mcp";
-        if (data->platform_interface->set_handler(path, handle_mcp_request, data) < 0) {
-            mcp_log_error("HTTP Transport: Failed to set request handler");
-            return -1;
-        }
-    }
+    // 构建监听地址
+    char listen_url[512];
+    snprintf(listen_url, sizeof(listen_url), "http://%s:%d", data->bind_address, data->port);
 
-    // 启动平台 HTTP 服务器
-    if (data->platform_interface->start && data->platform_interface->start() < 0) {
-        mcp_log_error("HTTP Transport: Failed to start platform HTTP server");
+    // 通过HAL启动HTTP服务器 - 使用通用接口名称
+    data->server = data->hal->network.http_server_start(listen_url, http_request_handler, data);
+    if (!data->server) {
+        mcp_log_error("HTTP Transport: Failed to start server on %s", listen_url);
         return -1;
     }
 
     data->server_running = true;
     transport->state = MCP_TRANSPORT_STATE_RUNNING;
 
-    mcp_log_info("HTTP Transport: Server started on %s:%d using %s",
-                 data->bind_address, data->port, data->platform_interface->platform_name);
+    mcp_log_info("HTTP Transport: Server started on %s:%d", data->bind_address, data->port);
     return 0;
 }
 
@@ -184,9 +165,10 @@ int mcp_http_transport_stop_impl(mcp_transport_t *transport) {
         return 0;
     }
 
-    // 停止平台 HTTP 服务器
-    if (data->platform_interface->stop) {
-        data->platform_interface->stop();
+    // 通过HAL停止服务器 - 使用通用接口名称
+    if (data->server) {
+        data->hal->network.http_server_stop(data->server);
+        data->server = NULL;
     }
 
     data->server_running = false;
@@ -202,26 +184,34 @@ int mcp_http_transport_send_impl(mcp_connection_t *connection, const char *messa
     }
 
     mcp_http_transport_data_t *data = (mcp_http_transport_data_t*)connection->transport->private_data;
-    if (!data || !data->platform_interface) {
+    if (!data) {
         return -1;
     }
 
-    // 构造 JSON 响应（不使用SSE）
-    mcp_platform_http_response_t response = {0};
-    response.status_code = 200;
-    response.content_type = "application/json";
-    response.is_sse = false;  // 使用普通JSON响应
-    response.sse_event = NULL;
-    response.body = message;
-    response.body_length = length;
-    response.close_connection = true;  // MCP 通常是请求-响应模式
-
-    // 发送响应
-    if (data->platform_interface->send_response) {
-        return data->platform_interface->send_response(connection->private_data, &response);
+    // 获取HAL连接
+    mcp_hal_connection_t hal_conn = (mcp_hal_connection_t)connection->private_data;
+    if (!hal_conn) {
+        mcp_log_error("HTTP Transport: No HAL connection in send");
+        return -1;
     }
 
-    return -1;
+    // 构造HAL响应
+    mcp_hal_http_response_t response = {
+        .status_code = 200,
+        .headers = "Content-Type: application/json\r\n"
+                  "Access-Control-Allow-Origin: *\r\n"
+                  "Access-Control-Allow-Headers: Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version\r\n",
+        .body = message,
+        .body_len = length
+    };
+
+    // 通过HAL发送响应 - 使用通用接口名称
+    int result = data->hal->network.http_response_send(hal_conn, &response);
+    if (result > 0) {
+        mcp_log_debug("HTTP Transport: Sent response (%zu bytes)", length);
+    }
+
+    return result;
 }
 
 int mcp_http_transport_close_connection_impl(mcp_connection_t *connection) {
@@ -229,11 +219,7 @@ int mcp_http_transport_close_connection_impl(mcp_connection_t *connection) {
         return -1;
     }
 
-    mcp_http_transport_data_t *data = (mcp_http_transport_data_t*)connection->transport->private_data;
-    if (data && data->platform_interface && data->platform_interface->close_connection) {
-        return data->platform_interface->close_connection(connection->private_data);
-    }
-
+    // HTTP连接由HAL层管理，这里只标记为非活跃
     connection->is_active = false;
     return 0;
 }
@@ -269,11 +255,6 @@ void mcp_http_transport_cleanup_impl(mcp_transport_t *transport) {
     // 停止服务器
     mcp_http_transport_stop_impl(transport);
 
-    // 清理平台接口
-    if (data->platform_interface && data->platform_interface->cleanup) {
-        data->platform_interface->cleanup();
-    }
-
     // 释放资源
     free(data->bind_address);
     free(data->endpoint_path);
@@ -284,9 +265,6 @@ void mcp_http_transport_cleanup_impl(mcp_transport_t *transport) {
     mcp_log_info("HTTP Transport: Cleanup completed");
 }
 
-// 外部接口函数 - 用于 Linux HTTP 实现的轮询
-extern int linux_http_poll(void);
-
 // 轮询函数 - 供主循环调用
 int mcp_http_transport_poll(mcp_transport_t *transport) {
     if (!transport || !transport->private_data) {
@@ -295,13 +273,9 @@ int mcp_http_transport_poll(mcp_transport_t *transport) {
 
     mcp_http_transport_data_t *data = (mcp_http_transport_data_t*)transport->private_data;
 
-    if (!data->platform_interface) {
-        return -1;
-    }
-
-    // 调用 mongoose 轮询函数
-    if (strstr(data->platform_interface->platform_name, "mongoose")) {
-        return linux_http_poll();
+    // 通过HAL轮询 - 使用通用接口名称
+    if (data->server_running && data->hal) {
+        return data->hal->network.network_poll(10); // 10ms超时
     }
 
     return 0;

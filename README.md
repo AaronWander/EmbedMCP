@@ -11,24 +11,16 @@ A lightweight C library for creating MCP (Model Context Protocol) servers with p
 
 ✅ **Tool System** - Complete implementation with flexible function API
 ✅ **Multi-Session Support** - Concurrent connections with session management
-✅ **HAL Architecture** - Hardware Abstraction Layer for cross-platform support
 ✅ **HTTP/STDIO Transport** - Full MCP protocol support
-🚧 **Resource System** - Coming soon
 🚧 **Prompt System** - Coming soon
 🚧 **Sampling System** - Coming soon
 
-EmbedMCP allows you to create powerful custom tool MCP servers and support multiple concurrent clients. The library features a Hardware Abstraction Layer (HAL) that enables the same application code to run on Linux, embedded Linux, and various RTOS platforms without modification!
-
 ## Features
 
-- **Cross-Platform** - Same code runs on Linux, embedded Linux, and RTOS via HAL
+- **Cross-Platform** - Same code runs on 15+ platforms via Universal HAL
 - **Multi-Session Support** - Handle multiple concurrent clients with session management
 - **Easy Integration** - Copy one folder, include one header file
 - **Multiple Transports** - HTTP and STDIO support
-
-### Supported Platforms
-- ✅ **Embedded Linux** - Raspberry Pi, embedded systems
-- 🚧 **FreeRTOS** - Real-time operating system
 
 ### Write Once, Run Everywhere
 ```c
@@ -140,13 +132,8 @@ your_project/
 │   ├── application/          # Session management & multi-client support
 │   ├── cjson/                # JSON dependency
 │   ├── hal/                  # Hardware abstraction layer
-│   │   └── freertos/         # FreeRTOS-specific implementations
 │   ├── platform/             # Platform-specific implementations
-│   │   └── linux/            # Linux platform (HTTP via Mongoose)
 │   ├── protocol/             # MCP protocol implementation
-│   │   ├── mcp_protocol.c    # Core protocol logic & dynamic capabilities
-│   │   ├── protocol_state.c  # Protocol state management
-│   │   └── ...               # Other protocol files
 │   ├── tools/                # Tool system
 │   ├── transport/            # HTTP/STDIO transport
 │   └── utils/                # Utilities (logging, UUID, base64, etc.)
@@ -430,10 +417,20 @@ make
 ./bin/mcp_server -t http -p 8080 -d
 ```
 
-Example server includes three demo tools (registered using `embed_mcp_add_tool`):
+Example server includes demo tools and resources:
+
+**Tools** (registered using `embed_mcp_add_tool`):
 - `add(a, b)` - Add two numbers (demonstrates basic math operations)
-- `weather(city)` - Get weather information (demonstrates string processing)
+- `weather(city)` - Get weather information (demonstrates string processing, supports Jinan/济南)
 - `calculate_score(base_points, grade, multiplier)` - Calculate score with grade bonus (demonstrates mixed parameter types)
+
+**Resources** (demonstrates resource system):
+- `config://readme` - Project README (static text resource)
+- `status://system` - System status (dynamic JSON resource)
+- `config://server` - Server configuration (dynamic JSON resource)
+- `file://example.txt` - Example text file (file resource)
+- `file:///./{path}` - Project files template (file resource template)
+- `file:///./examples/{path}` - Examples template (file resource template)
 
 ### Test with MCP Inspector
 
@@ -441,6 +438,8 @@ Example server includes three demo tools (registered using `embed_mcp_add_tool`)
 2. Run your server: `./bin/mcp_server -t http -p 8080`
 3. Connect in MCP Inspector
 4. Connect to: `http://localhost:8080/mcp`
+
+
 
 ## Important Notes
 

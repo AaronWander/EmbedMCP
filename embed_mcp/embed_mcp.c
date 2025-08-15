@@ -392,8 +392,10 @@ static void on_message_received(const char *message, size_t length,
     int result = mcp_protocol_handle_message(server->protocol, message);
     // Keep connection available until after message handling is complete
     // Don't set to NULL immediately as response sending might be synchronous
-    if (result != 0) {
+    if (result < 0) {
         mcp_log_error("Protocol message handling failed: %d", result);
+    } else if (result > 0) {
+        mcp_log_debug("Protocol message handled successfully, sent %d bytes", result);
     }
     server->current_connection = NULL;
 }

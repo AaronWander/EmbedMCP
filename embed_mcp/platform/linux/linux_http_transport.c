@@ -1,5 +1,7 @@
-#include "../platform_http_interface.h"
+
+#include "linux_http_transport.h"
 #include "../../utils/logging.h"
+#include "../../hal/platform_hal.h"  // 包含HAL类型定义
 #include "mongoose.h"
 #include "../../cjson/cJSON.h"
 #include <stdio.h>
@@ -12,78 +14,35 @@
 static struct mg_mgr mgr;
 static struct mg_connection *server_conn = NULL;
 static bool server_running = false;
-static mcp_platform_http_handler_t request_handler = NULL;
-static void* handler_user_data = NULL;
 static int server_port = 9943;  // 默认端口
 static char server_bind_address[256] = "0.0.0.0";  // 默认绑定地址
 
-// 解析 JSON-RPC 请求 - 使用 cJSON
-static int parse_jsonrpc_request(const char* body, char* method, int* id, char* protocol_version) {
-    // 初始化输出参数
-    method[0] = '\0';
-    *id = 0;
-    protocol_version[0] = '\0';
+// 注意：这些函数现在是存根，传输层直接使用mongoose
+// 保留这些函数只是为了编译兼容性
 
-    // 使用 cJSON 解析
-    cJSON *json = cJSON_Parse(body);
-    if (!json) {
-        mcp_log_error("Linux HTTP: Failed to parse JSON: %s", cJSON_GetErrorPtr());
-        return -1;
-    }
+// 注意：HAL类型定义现在在platform_hal.h中
 
-    // 提取 method 字段
-    cJSON *method_obj = cJSON_GetObjectItem(json, "method");
-    if (method_obj && cJSON_IsString(method_obj)) {
-        const char *method_str = cJSON_GetStringValue(method_obj);
-        if (method_str) {
-            size_t len = strlen(method_str);
-            if (len < 63) { // 确保不超出缓冲区
-                strcpy(method, method_str);
-            } else {
-                mcp_log_warn("Linux HTTP: Method name too long, truncating");
-                strncpy(method, method_str, 62);
-                method[62] = '\0';
-            }
-        }
-    }
+// 存根变量
+static void* g_hal_handler = NULL;
+static void* g_hal_user_data = NULL;
 
-    // 提取 id 字段
-    cJSON *id_obj = cJSON_GetObjectItem(json, "id");
-    if (id_obj) {
-        if (cJSON_IsNumber(id_obj)) {
-            *id = cJSON_GetNumberValue(id_obj);
-        } else if (cJSON_IsString(id_obj)) {
-            // 有些客户端可能发送字符串ID
-            const char *id_str = cJSON_GetStringValue(id_obj);
-            if (id_str) {
-                *id = atoi(id_str);
-            }
-        }
-    }
+// 辅助函数：将mg_str转换为C字符串（使用多个缓冲区避免覆盖）
+static const char* mg_str_to_cstr(struct mg_str str) {
+    static char buffers[4][1024];  // 4个缓冲区轮换使用
+    static int current_buffer = 0;
 
-    // 提取协议版本 (从 params.protocolVersion)
-    cJSON *params = cJSON_GetObjectItem(json, "params");
-    if (params && cJSON_IsObject(params)) {
-        cJSON *version_obj = cJSON_GetObjectItem(params, "protocolVersion");
-        if (version_obj && cJSON_IsString(version_obj)) {
-            const char *version_str = cJSON_GetStringValue(version_obj);
-            if (version_str) {
-                size_t len = strlen(version_str);
-                if (len < 31) { // 确保不超出缓冲区
-                    strcpy(protocol_version, version_str);
-                } else {
-                    strncpy(protocol_version, version_str, 30);
-                    protocol_version[30] = '\0';
-                }
-            }
-        }
-    }
+    char* buffer = buffers[current_buffer];
+    current_buffer = (current_buffer + 1) % 4;
 
-    cJSON_Delete(json);
-    return 0;
+    size_t len = str.len < sizeof(buffers[0]) - 1 ? str.len : sizeof(buffers[0]) - 1;
+    strncpy(buffer, str.buf, len);
+    buffer[len] = '\0';
+    return buffer;
 }
 
-// mongoose 事件处理器
+
+
+// mongoose 事件处理器 - HAL版本
 static void mongoose_event_handler(struct mg_connection *c, int ev, void *ev_data) {
     if (ev == MG_EV_HTTP_MSG) {
         struct mg_http_message *hm = (struct mg_http_message *) ev_data;
@@ -92,122 +51,94 @@ static void mongoose_event_handler(struct mg_connection *c, int ev, void *ev_dat
                      (int)hm->method.len, hm->method.buf,
                      (int)hm->uri.len, hm->uri.buf);
 
-        // 处理 POST 请求
-        if (mg_strcmp(hm->method, mg_str("POST")) == 0) {
-            char method[64] = {0};
-            char protocol_version[32] = "2025-03-26"; // 默认版本
-            int id = 1;
+        // 检查是否有HAL处理器
+        if (!g_hal_handler) {
+            mcp_log_error("Linux HTTP: No HAL handler available");
+            mg_http_reply(c, 500, NULL, "Internal Server Error: No HAL handler");
+            return;
+        }
 
-            // 检查请求体
-            if (hm->body.len == 0) {
-                mg_http_reply(c, 400, NULL, "Bad Request: Empty body");
+        // 转换mongoose请求到HAL请求
+        mcp_hal_http_request_t hal_req = {
+            .method = mg_str_to_cstr(hm->method),  // HTTP方法：POST, GET等
+            .uri = mg_str_to_cstr(hm->uri),        // URL路径：/mcp等
+            .body = hm->body.buf,
+            .body_len = hm->body.len,
+            .connection = (mcp_hal_connection_t)c
+        };
+
+        // 创建HAL响应
+        mcp_hal_http_response_t hal_resp = {0};
+
+        // 存根：直接返回404
+        int result = -1;
+        (void)hal_req;
+        (void)hal_resp;
+        (void)g_hal_user_data;
+
+        // 发送响应
+        if (result == 0) {
+            // 检查是否为延迟响应
+            if (hal_resp.status_code == 0) {
+                // 延迟响应，等待send_response调用
                 return;
             }
 
-            if (hm->body.len >= 4096) {
-                mg_http_reply(c, 413, NULL, "Request Entity Too Large");
-                return;
-            }
-
-            // 解析 JSON-RPC 请求
-            char body[4096];
-            size_t body_len = hm->body.len;
-            strncpy(body, hm->body.buf, body_len);
-            body[body_len] = '\0';
-
-            parse_jsonrpc_request(body, method, &id, protocol_version);
-
-            // 处理所有 MCP 方法 - 统一交给用户处理器
-            if (request_handler) {
-                    mcp_platform_http_request_t request = {0};
-                    request.method = "POST";
-                    request.url = "/mcp";
-                    request.body = body;
-                    request.body_length = body_len;
-                    request.content_type = "application/json";
-                    request.platform_connection = c;
-
-                    mcp_platform_http_response_t response = {0};
-                    if (request_handler(&request, &response, handler_user_data) == 0) {
-                        // 如果状态码为0，表示延迟响应，不在这里发送
-                        if (response.status_code == 0) {
-                            return; // 等待 send_response 调用
-                        }
-
-                        if (response.is_sse) {
-                            mg_http_reply(c, response.status_code,
-                                         "Content-Type: text/event-stream\r\n"
-                                         "Cache-Control: no-cache, no-transform\r\n"
-                                         "Connection: keep-alive\r\n"
-                                         "Access-Control-Allow-Origin: *\r\n"
-                                         "Access-Control-Allow-Headers: Content-Type, Authorization\r\n",
-                                         "event: %s\ndata: %s\n\n",
-                                         response.sse_event ? response.sse_event : "message",
-                                         response.body ? response.body : "");
-                        } else {
-                            mg_http_reply(c, response.status_code,
-                                         "Content-Type: %s\r\n"
-                                         "Access-Control-Allow-Origin: *\r\n"
-                                         "Access-Control-Allow-Headers: Content-Type, Authorization\r\n",
-                                         response.content_type ? response.content_type : "application/json",
-                                         "%s", response.body ? response.body : "");
-                        }
-                    } else {
-                        mcp_log_error("Linux HTTP: Request handler failed");
-                        mg_http_reply(c, 500, NULL, "Internal Server Error");
-                    }
-            } else {
-                // 默认响应
-                mg_http_reply(c, 404, NULL, "Not Found");
-            }
+            // 立即发送响应
+            mg_http_reply(c, hal_resp.status_code,
+                         "Content-Type: application/json\r\n"
+                         "Access-Control-Allow-Origin: *\r\n"
+                         "Access-Control-Allow-Headers: Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version\r\n",
+                         "%s", hal_resp.body ? hal_resp.body : "");
         } else {
-            // 非 POST 请求
-            mg_http_reply(c, 405, NULL, "Method Not Allowed");
+            mcp_log_error("Linux HTTP: Request handler failed with code %d", result);
+            mg_http_reply(c, 500, NULL, "Internal Server Error");
         }
     }
 }
 
-// 实现平台接口函数
-static int linux_init(const mcp_transport_config_t* config, void* user_data) {
-    (void)user_data; // Unused parameter
-    mg_mgr_init(&mgr);
+// 注意：旧的平台接口函数已被移除，现在只使用HAL接口
 
-    // 保存配置信息
-    if (config && config->type == MCP_TRANSPORT_HTTP) {
-        server_port = config->config.http.port;
-        if (config->config.http.bind_address) {
-            strncpy(server_bind_address, config->config.http.bind_address, sizeof(server_bind_address) - 1);
-            server_bind_address[sizeof(server_bind_address) - 1] = '\0';
-        }
-    }
+// ============================================================================
+// HAL接口实现 - 供HAL层调用
+// ============================================================================
 
-    mcp_log_info("Linux HTTP: Initialized mongoose manager (port: %d, bind: %s)",
-                 server_port, server_bind_address);
+
+
+int linux_http_init(void* config) {
+    // 存根函数
+    (void)config;
+    g_hal_handler = NULL;
+    g_hal_user_data = NULL;
+
+    // 存根：不做任何初始化
+    mcp_log_info("Linux HTTP: Stub init function called");
+
     return 0;
 }
 
-static int linux_start(void) {
+int linux_http_start(void) {
     if (server_running) {
+        mcp_log_warn("Linux HTTP HAL: Server already running");
         return 0;
     }
 
-    // 构建监听地址
-    char listen_url[512];
-    snprintf(listen_url, sizeof(listen_url), "http://%s:%d", server_bind_address, server_port);
+    // 直接启动mongoose服务器
+    char bind_url[256];
+    snprintf(bind_url, sizeof(bind_url), "http://%s:%d", server_bind_address, server_port);
 
-    // 启动 HTTP 服务器
-    server_conn = mg_http_listen(&mgr, listen_url, mongoose_event_handler, NULL);
+    server_conn = mg_http_listen(&mgr, bind_url, mongoose_event_handler, g_hal_user_data);
     if (!server_conn) {
-        mcp_log_error("Linux HTTP: Failed to start mongoose server on %s", listen_url);
+        mcp_log_error("Linux HTTP HAL: Failed to start server on %s", bind_url);
         return -1;
     }
 
     server_running = true;
-    mcp_log_info("Linux HTTP: Server started on port %d", server_port);
+    mcp_log_info("Linux HTTP HAL: Server started on %s", bind_url);
     return 0;
 }
 
-static int linux_stop(void) {
+int linux_http_stop(void) {
     if (!server_running) {
         return 0;
     }
@@ -218,70 +149,69 @@ static int linux_stop(void) {
         server_conn = NULL;
     }
 
-    mcp_log_info("Linux HTTP: Server stopped");
+    mcp_log_info("Linux HTTP HAL: Server stopped");
     return 0;
 }
 
-static void linux_cleanup(void) {
-    linux_stop();
-    mg_mgr_free(&mgr);
-    mcp_log_info("Linux HTTP: Cleanup completed");
+int linux_http_send(const void* data, size_t len) {
+    // 这个函数现在主要用于向后兼容
+    // 实际的HTTP响应发送通过 linux_http_send_response 完成
+    mcp_log_warn("Linux HTTP HAL: send() called, but HTTP responses should use send_response()");
+    (void)data;
+    (void)len;
+    return -1;
 }
 
-static int linux_set_handler(const char* path, mcp_platform_http_handler_t handler, void* user_data) {
-    request_handler = handler;
-    handler_user_data = user_data;
-    mcp_log_debug("Linux HTTP: Handler set for path: %s", path);
-    return 0;
-}
-
-static int linux_send_response(mcp_platform_http_connection_t connection,
-                              const mcp_platform_http_response_t* response) {
-    struct mg_connection* c = (struct mg_connection*)connection;
-    if (!c || !response) {
+int linux_http_send_response(void* platform_connection, const mcp_hal_http_response_t* response) {
+    if (!platform_connection || !response) {
+        mcp_log_error("Linux HTTP HAL: Invalid parameters for send_response");
         return -1;
     }
 
-    if (response->is_sse) {
-        mg_http_reply(c, response->status_code,
-                     "Content-Type: text/event-stream\r\n"
-                     "Cache-Control: no-cache, no-transform\r\n"
-                     "Connection: keep-alive\r\n"
-                     "Access-Control-Allow-Origin: *\r\n"
-                     "Access-Control-Allow-Headers: Content-Type, Authorization\r\n",
-                     "event: %s\ndata: %s\n\n",
-                     response->sse_event ? response->sse_event : "message",
-                     response->body ? response->body : "");
-    } else {
-        mg_http_reply(c, response->status_code,
-                     "Content-Type: application/json\r\n"
-                     "Access-Control-Allow-Origin: *\r\n"
-                     "Access-Control-Allow-Headers: Content-Type, Authorization\r\n",
-                     "%s", response->body ? response->body : "");
-    }
+    struct mg_connection* c = (struct mg_connection*)platform_connection;
 
+    mcp_log_debug("Linux HTTP: Sending response: status=%d, body_len=%zu",
+                 response->status_code, response->body_len);
+
+    mg_http_reply(c, response->status_code,
+                 "Content-Type: application/json\r\n"
+                 "Access-Control-Allow-Origin: *\r\n"
+                 "Access-Control-Allow-Headers: Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version\r\n",
+                 "%.*s", (int)response->body_len, response->body ? response->body : "");
+
+    return (int)response->body_len;
+}
+
+int linux_http_recv(void* buffer, size_t max_len) {
+    // 对于HTTP服务器，接收通过事件处理完成
+    // 这里返回0表示没有数据
+    (void)buffer;
+    (void)max_len;
     return 0;
 }
 
-// mongoose 轮询函数
+
+
+int linux_http_close(void) {
+    // 关闭服务器
+    return linux_http_stop();
+}
+
+bool linux_http_is_connected(void) {
+    return server_running;
+}
+
+void linux_http_cleanup(void) {
+    linux_http_stop();
+    mg_mgr_free(&mgr);
+    g_hal_handler = NULL;
+    g_hal_user_data = NULL;
+    mcp_log_info("Linux HTTP HAL: Cleanup completed");
+}
+
 int linux_http_poll(void) {
     if (server_running) {
         mg_mgr_poll(&mgr, 10); // 10ms 超时
     }
     return 0;
 }
-
-// 导出接口
-const mcp_platform_http_interface_t linux_http_interface = {
-    .platform_name = "Linux HTTP (mongoose)",
-    .init = linux_init,
-    .start = linux_start,
-    .stop = linux_stop,
-    .cleanup = linux_cleanup,
-    .set_handler = linux_set_handler,
-    .send_response = linux_send_response,
-    .close_connection = NULL,  // mongoose 自动管理
-    .is_connection_active = NULL,
-    .get_stats = NULL,
-    .set_option = NULL
-};

@@ -2,13 +2,10 @@
 #define MCP_HTTP_TRANSPORT_H
 
 #include "transport_interface.h"
-#include "../platform/platform_http_interface.h"
+#include "../hal/platform_hal.h"
 
-// HTTP transport specific structures (简化版本，使用平台抽象)
+// HTTP transport specific structures (使用HAL接口)
 typedef struct {
-    // 平台 HTTP 接口
-    const mcp_platform_http_interface_t* platform_interface;
-
     // 传输配置
     char *bind_address;
     int port;
@@ -25,6 +22,10 @@ typedef struct {
 
     // MCP 传输引用
     mcp_transport_t* transport;
+
+    // HAL接口
+    const mcp_platform_hal_t* hal;
+    mcp_hal_server_t server;      // HAL服务器句柄
 } mcp_http_transport_data_t;
 
 // HTTP transport interface implementation

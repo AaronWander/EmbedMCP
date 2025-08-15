@@ -11,25 +11,17 @@
 
 ✅ **工具系统** - 完整实现，支持灵活的函数API
 ✅ **多会话支持** - 并发连接与会话管理
-✅ **HAL架构** - 硬件抽象层，支持跨平台开发
 ✅ **HTTP/STDIO传输** - 完整的MCP协议支持
-🚧 **资源系统** - 即将推出
 🚧 **提示系统** - 即将推出
 🚧 **采样系统** - 即将推出
 
-EmbedMCP让您能够创建强大的自定义工具MCP服务器并支持多个并发客户端。该库具有硬件抽象层（HAL），使相同的应用程序代码能够在Linux、嵌入式Linux和各种RTOS平台上运行而无需修改！
 
 ## 特性
 
-- **跨平台** - 相同代码通过HAL在Linux、嵌入式Linux、RTOS上运行
+- **跨平台** - 相同代码通过通用HAL在15+个平台上运行
 - **多会话支持** - 处理多个并发客户端，支持会话管理
 - **易于集成** - 复制一个文件夹，包含一个头文件即可
 - **多种传输** - HTTP和STDIO支持
-
-### 支持的平台
-- ✅ **嵌入式Linux** - 树莓派、嵌入式系统
-- 🚧 **FreeRTOS** - 实时操作系统
-
 
 ### 一次编写，到处运行
 ```c
@@ -131,16 +123,23 @@ your_project/
 │   ├── Makefile.inc          # Makefile配置
 │   ├── application/          # 会话管理和多客户端支持
 │   ├── cjson/                # JSON依赖
-│   ├── hal/                  # 硬件抽象层
-│   │   └── freertos/         # FreeRTOS特定实现
+│   ├── hal/                  # 通用硬件抽象层
+│   │   ├── platform_hal.h    # 通用HAL接口定义
+│   │   ├── linux_hal.c       # 基于mongoose的HAL实现
+│   │   ├── freertos_hal.c    # FreeRTOS HAL实现
+│   │   └── custom_platform_hal.c # 自定义平台HAL示例
 │   ├── platform/             # 平台特定实现
-│   │   └── linux/            # Linux平台（通过Mongoose提供HTTP）
+│   │   └── linux/            # Linux平台（mongoose库）
 │   ├── protocol/             # MCP协议实现
 │   │   ├── mcp_protocol.c    # 核心协议逻辑和动态能力检测
 │   │   ├── protocol_state.c  # 协议状态管理
 │   │   └── ...               # 其他协议文件
-│   ├── tools/                # 工具系统
-│   ├── transport/            # HTTP/STDIO传输
+│   ├── tools/                # 工具和资源系统
+│   │   ├── builtin_tools.c   # 内置工具实现
+│   │   ├── tool_registry.c   # 工具注册和管理
+│   │   ├── resource_registry.c # 资源注册和管理
+│   │   └── file_resource_handler.c # 文件资源支持
+│   ├── transport/            # 通过通用HAL的HTTP/STDIO传输
 │   └── utils/                # 工具库（日志、UUID、base64等）
 └── Makefile
 ```
@@ -198,7 +197,7 @@ int main() {
 
 ### 步骤3：编译您的项目
 
-**方式1：使用提供的Makefile配置**
+**使用提供的Makefile配置**
 ```makefile
 # 在您的Makefile中包含
 include embed_mcp/Makefile.inc
@@ -207,11 +206,6 @@ my_app: main.c $(EMBED_MCP_SOURCES)
 	$(CC) $(EMBED_MCP_INCLUDES) main.c $(EMBED_MCP_SOURCES) $(EMBED_MCP_LIBS) -o my_app
 ```
 
-**方式2：直接编译**
-```bash
-gcc main.c embed_mcp/*.c embed_mcp/*/*.c embed_mcp/cjson/*.c \
-    -Iembed_mcp -lpthread -lm -o my_app
-```
 
 ## 核心数据结构
 
@@ -446,10 +440,20 @@ make
 ```
 
 
-示例服务器包含三个演示工具（使用`embed_mcp_add_tool`注册）：
+示例服务器包含演示工具和资源：
+
+**工具**（使用`embed_mcp_add_tool`注册）：
 - `add(a, b)` - 两个数字相加（演示基础数学运算）
-- `weather(city)` - 获取天气信息（演示字符串处理）
+- `weather(city)` - 获取天气信息（演示字符串处理，支持济南）
 - `calculate_score(base_points, grade, multiplier)` - 计算带等级奖励的分数（演示混合参数类型）
+
+**资源**（演示资源系统）：
+- `config://readme` - 项目README（静态文本资源）
+- `status://system` - 系统状态（动态JSON资源）
+- `config://server` - 服务器配置（动态JSON资源）
+- `file://example.txt` - 示例文本文件（文件资源）
+- `file:///./{path}` - 项目文件模板（文件资源模板）
+- `file:///./examples/{path}` - 示例模板（文件资源模板）
 
 ### 使用MCP Inspector测试
 
@@ -457,7 +461,6 @@ make
 2. 运行您的服务器：`./bin/mcp_server -t http -p 8080`
 3. 在MCP Inspector中连接
 4. 连接到：`http://localhost:8080/mcp`
-
 
 
 
@@ -483,4 +486,3 @@ make
 ---
 
 **EmbedMCP** - 让嵌入式设备共连智能
-```
