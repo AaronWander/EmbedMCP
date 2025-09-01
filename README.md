@@ -301,6 +301,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
                        const char *name,
                        const char *description,
                        const char *param_names[],
+                       const char *param_descriptions[],
                        mcp_param_type_t param_types[],
                        size_t param_count,
                        mcp_return_type_t return_type,
@@ -312,6 +313,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
 - `name` - Unique tool name (used in MCP protocol)
 - `description` - Human-readable tool description
 - `param_names` - Array of parameter names
+- `param_descriptions` - Array of parameter descriptions (for MCP inputSchema)
 - `param_types` - Array of parameter types
 - `param_count` - Number of parameters
 - `return_type` - Return type (`MCP_RETURN_DOUBLE`, `MCP_RETURN_INT`, `MCP_RETURN_STRING`, `MCP_RETURN_VOID`)
@@ -341,10 +343,11 @@ typedef enum {
 ```c
 // For function: int add(int a, int b)
 const char* param_names[] = {"a", "b"};
+const char* param_descriptions[] = {"First integer to add", "Second integer to add"};
 mcp_param_type_t param_types[] = {MCP_PARAM_INT, MCP_PARAM_INT};
 
 embed_mcp_add_tool(server, "add", "Add two integers",
-                   param_names, param_types, 2, MCP_RETURN_INT, add_function);
+                   param_names, param_descriptions, param_types, 2, MCP_RETURN_INT, add_function);
 ```
 
 ### Parameter Definition Macros

@@ -241,10 +241,11 @@ int main(int argc, char *argv[]) {
 
     // Example 1: Simple math function - double add_numbers(double a, double b)
     const char* add_param_names[] = {"a", "b"};
+    const char* add_param_descriptions[] = {"First number to add", "Second number to add"};
     mcp_param_type_t add_param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
 
     if (embed_mcp_add_tool(server, "add", "Add two numbers together",
-                                  add_param_names, add_param_types, 2,
+                                  add_param_names, add_param_descriptions, add_param_types, 2,
                                   MCP_RETURN_DOUBLE, add_numbers) != 0) {
         printf("Failed to register 'add' function: %s\n", embed_mcp_get_error());
     } else {
@@ -258,10 +259,11 @@ int main(int argc, char *argv[]) {
 
     // Example 3: String function - char* get_weather(const char*)
     const char* weather_param_names[] = {"city"};
+    const char* weather_param_descriptions[] = {"Name of the city to get weather for (supports Jinan/济南)"};
     mcp_param_type_t weather_param_types[] = {MCP_PARAM_STRING};
 
     if (embed_mcp_add_tool(server, "weather", "Get weather information for a city",
-                                  weather_param_names, weather_param_types, 1,
+                                  weather_param_names, weather_param_descriptions, weather_param_types, 1,
                                   MCP_RETURN_STRING, get_weather) != 0) {
         printf("Failed to register 'weather' function: %s\n", embed_mcp_get_error());
     } else {
@@ -270,10 +272,15 @@ int main(int argc, char *argv[]) {
 
     // Example 4: Multi-parameter function - int calculate_score(int, char, double)
     const char* score_param_names[] = {"base_points", "grade", "multiplier"};
+    const char* score_param_descriptions[] = {
+        "Base points for the calculation", 
+        "Grade letter (A, B, C, D or other)", 
+        "Score multiplier factor"
+    };
     mcp_param_type_t score_param_types[] = {MCP_PARAM_INT, MCP_PARAM_CHAR, MCP_PARAM_DOUBLE};
 
     if (embed_mcp_add_tool(server, "calculate_score", "Calculate score with grade bonus",
-                                  score_param_names, score_param_types, 3,
+                                  score_param_names, score_param_descriptions, score_param_types, 3,
                                   MCP_RETURN_INT, calculate_score) != 0) {
         printf("Failed to register 'calculate_score' function: %s\n", embed_mcp_get_error());
     } else {

@@ -1077,6 +1077,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
                        const char *name,
                        const char *description,
                        const char *param_names[],
+                       const char *param_descriptions[],
                        mcp_param_type_t param_types[],
                        size_t param_count,
                        mcp_return_type_t return_type,
@@ -1088,6 +1089,12 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
 
     if (param_count > 16) {
         set_error("Too many parameters (max 16)");
+        return -1;
+    }
+
+    // Validate that if we have parameters, we have all required arrays
+    if (param_count > 0 && (!param_names || !param_descriptions || !param_types)) {
+        set_error("Missing parameter information arrays");
         return -1;
     }
 
@@ -1144,7 +1151,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
 
     for (size_t i = 0; i < param_count; i++) {
         params[i].name = func_data->param_names[i];
-        params[i].description = "Parameter";  // Generic description
+        params[i].description = param_descriptions[i];  // Use provided descriptions
         params[i].category = MCP_PARAM_SINGLE;
         params[i].required = 1;
         params[i].single_type = param_types[i];

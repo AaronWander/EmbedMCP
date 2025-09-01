@@ -324,6 +324,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
                        const char *name,
                        const char *description,
                        const char *param_names[],
+                       const char *param_descriptions[],
                        mcp_param_type_t param_types[],
                        size_t param_count,
                        mcp_return_type_t return_type,
@@ -335,6 +336,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
 - `name` - 唯一工具名称（在MCP协议中使用）
 - `description` - 人类可读的工具描述
 - `param_names` - 参数名称数组
+- `param_descriptions` - 参数描述数组（用于MCP inputSchema）
 - `param_types` - 参数类型数组
 - `param_count` - 参数数量
 - `return_type` - 返回类型（`MCP_RETURN_DOUBLE`、`MCP_RETURN_INT`、`MCP_RETURN_STRING`、`MCP_RETURN_VOID`）
@@ -364,10 +366,11 @@ typedef enum {
 ```c
 // 对于函数: int add(int a, int b)
 const char* param_names[] = {"a", "b"};
+const char* param_descriptions[] = {"第一个整数", "第二个整数"};
 mcp_param_type_t param_types[] = {MCP_PARAM_INT, MCP_PARAM_INT};
 
 embed_mcp_add_tool(server, "add", "两个整数相加",
-                   param_names, param_types, 2, MCP_RETURN_INT, add_function);
+                   param_names, param_descriptions, param_types, 2, MCP_RETURN_INT, add_function);
 ```
 
 ### 参数定义宏

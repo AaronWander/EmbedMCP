@@ -191,16 +191,18 @@ void embed_mcp_destroy(embed_mcp_server_t *server);
  * int my_func(char c, int a, int b, char d) { return c + a + b + d; }
  *
  * const char* param_names[] = {"c", "a", "b", "d"};
+ * const char* param_descriptions[] = {"First character", "First number", "Second number", "Last character"};
  * mcp_param_type_t param_types[] = {MCP_PARAM_CHAR, MCP_PARAM_INT, MCP_PARAM_INT, MCP_PARAM_CHAR};
  *
  * embed_mcp_add_tool(server, "my_func", "My custom function",
- *                    param_names, param_types, 4, MCP_RETURN_INT, my_func);
+ *                    param_names, param_descriptions, param_types, 4, MCP_RETURN_INT, my_func);
  * ```
  *
  * @param server Server instance
  * @param name Tool name
  * @param description Tool description
  * @param param_names Array of parameter names
+ * @param param_descriptions Array of parameter descriptions
  * @param param_types Array of parameter types
  * @param param_count Number of parameters
  * @param return_type Return value type
@@ -211,6 +213,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
                        const char *name,
                        const char *description,
                        const char *param_names[],
+                       const char *param_descriptions[],
                        mcp_param_type_t param_types[],
                        size_t param_count,
                        mcp_return_type_t return_type,
