@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-// 内存管理辅助函数实现
+// Memory management helper function implementations
 char* hal_strdup(const mcp_platform_hal_t *hal, const char *str) {
     if (!hal || !str) return NULL;
     
@@ -21,7 +21,7 @@ void hal_free(const mcp_platform_hal_t *hal, void *ptr) {
     hal->memory.free(ptr);
 }
 
-// 错误处理辅助函数实现
+// Error handling helper function implementations
 mcp_result_t hal_safe_get(const mcp_platform_hal_t **hal_out) {
     if (!hal_out) return MCP_ERROR_NULL_POINTER;
 
@@ -53,7 +53,7 @@ mcp_result_t hal_safe_strdup(const mcp_platform_hal_t *hal, const char *str, cha
     return MCP_OK;
 }
 
-// 能力查询通用实现
+// Capability query common implementation
 bool hal_has_capability_generic(const mcp_platform_capabilities_t *capabilities, const char* capability) {
     if (!capabilities || !capability) return false;
     
@@ -64,9 +64,9 @@ bool hal_has_capability_generic(const mcp_platform_capabilities_t *capabilities,
     return false;
 }
 
-// 平台初始化/清理的通用包装
+// Common wrapper for platform initialization/cleanup
 int hal_platform_init_wrapper(platform_init_func_t init_func) {
-    if (!init_func) return 0; // 如果没有初始化函数，认为成功
+    if (!init_func) return 0; // If no init function, consider success
     return init_func();
 }
 
@@ -76,8 +76,8 @@ void hal_platform_cleanup_wrapper(platform_cleanup_func_t cleanup_func) {
     }
 }
 
-// 错误信息获取 - 现在使用统一的 mcp_error_to_string()
-// 这个函数保留用于向后兼容，但建议使用 mcp_error_to_string()
+// Error message retrieval - now uses unified mcp_error_to_string()
+// This function is kept for backward compatibility, but mcp_error_to_string() is recommended
 const char* hal_get_error_string(mcp_result_t result) {
     return mcp_error_to_string(result);
 }

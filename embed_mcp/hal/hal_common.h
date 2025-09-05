@@ -6,28 +6,28 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-// HAL通用辅助函数
+// HAL common helper functions
 
-// 内存管理辅助函数
+// Memory management helper functions
 char* hal_strdup(const mcp_platform_hal_t *hal, const char *str);
 void hal_free(const mcp_platform_hal_t *hal, void *ptr);
 
-// 错误处理辅助函数 (使用统一错误码)
+// Error handling helper functions (using unified error codes)
 mcp_result_t hal_safe_get(const mcp_platform_hal_t **hal_out);
 mcp_result_t hal_safe_alloc(const mcp_platform_hal_t *hal, size_t size, void **ptr_out);
 mcp_result_t hal_safe_strdup(const mcp_platform_hal_t *hal, const char *str, char **str_out);
 
-// 能力查询通用实现
+// Capability query common implementation
 bool hal_has_capability_generic(const mcp_platform_capabilities_t *capabilities, const char* capability);
 
-// 平台初始化/清理的通用包装
+// Common wrapper for platform initialization/cleanup
 typedef int (*platform_init_func_t)(void);
 typedef void (*platform_cleanup_func_t)(void);
 
 int hal_platform_init_wrapper(platform_init_func_t init_func);
 void hal_platform_cleanup_wrapper(platform_cleanup_func_t cleanup_func);
 
-// HAL导出函数的通用实现宏
+// Common implementation macro for HAL export functions
 #define HAL_IMPLEMENT_EXPORTS(hal_instance, capabilities_instance, init_func, cleanup_func) \
     const mcp_platform_hal_t* mcp_platform_get_hal(void) { \
         return &hal_instance; \
@@ -49,7 +49,7 @@ void hal_platform_cleanup_wrapper(platform_cleanup_func_t cleanup_func);
         hal_platform_cleanup_wrapper(cleanup_func); \
     }
 
-// 错误信息获取 (使用统一错误码)
-// 注意：现在使用 mcp_error_to_string() 替代 hal_get_error_string()
+// Error message retrieval (using unified error codes)
+// Note: Now use mcp_error_to_string() instead of hal_get_error_string()
 
 #endif // HAL_COMMON_H

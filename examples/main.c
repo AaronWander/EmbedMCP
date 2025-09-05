@@ -161,7 +161,7 @@ void print_usage(const char *program_name) {
 int main(int argc, char *argv[]) {
     // Parse command line arguments
     const char *transport_type = "stdio";
-    int port = 9943;  // 默认使用 MCP 标准端口
+    int port = 9943;  // Default MCP standard port
     const char *bind_address = "0.0.0.0";
     const char *endpoint_path = "/mcp";
     int debug = 0;
@@ -194,7 +194,7 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    // 显示系统信息 (对树莓派有用)
+    // Display system information (useful for Raspberry Pi)
     printf("=== EmbedMCP Server ===\n");
     printf("Platform: %s\n",
 #ifdef __arm__
@@ -208,12 +208,12 @@ int main(int argc, char *argv[]) {
 #endif
     );
 
-    // 如果是 HTTP 模式，显示网络信息
+    // If HTTP mode, display network information
     if (strcmp(transport_type, "http") == 0) {
         printf("Network Interface: %s:%d\n", bind_address, port);
         printf("Endpoint: %s\n", endpoint_path);
 
-        // 尝试获取本机 IP (对树莓派很有用)
+        // Try to get local IP (very useful for Raspberry Pi)
         if (strcmp(bind_address, "0.0.0.0") == 0) {
             printf("Note: Server will bind to all interfaces (0.0.0.0)\n");
             printf("      Access via: http://<your-pi-ip>:%d%s\n", port, endpoint_path);
@@ -235,8 +235,8 @@ int main(int argc, char *argv[]) {
         .max_tools = 100,
         .debug = debug,
 
-        // 树莓派优化的连接配置
-        .max_connections = 3,       // 树莓派资源有限，减少并发连接
+        // Raspberry Pi optimized connection configuration
+        .max_connections = 3,       // Limited resources on Pi, reduce concurrent connections
         .session_timeout = 1800,    // 30 minutes session timeout
         .enable_sessions = 1,       // Enable session management
         .auto_cleanup = 1           // Auto cleanup expired sessions
