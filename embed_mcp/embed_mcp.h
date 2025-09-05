@@ -33,8 +33,7 @@ typedef enum {
     MCP_PARAM_INT,
     MCP_PARAM_DOUBLE,
     MCP_PARAM_STRING,
-    MCP_PARAM_BOOL,
-    MCP_PARAM_CHAR        // Single character (transmitted as string)
+    MCP_PARAM_BOOL
 } mcp_param_type_t;
 
 // Return types for pure functions

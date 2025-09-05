@@ -3,11 +3,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -g -O2 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -DMG_ENABLE_LINES=1
 LDFLAGS = -lm -lpthread
 
-# libffi configuration
-LIBFFI_DIR = third_party/libffi
-LIBFFI_BUILD_DIR = $(LIBFFI_DIR)/build
-LIBFFI_LIB = $(LIBFFI_BUILD_DIR)/.libs/libffi.a
-LIBFFI_INCLUDE = $(LIBFFI_BUILD_DIR)/include
+# Note: libffi removed - not used in current implementation
 
 # Directories
 EMBED_MCP_DIR = embed_mcp
@@ -147,7 +143,7 @@ clean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
 
 # Clean everything including dependencies
-distclean: clean-libffi
+distclean: clean
 	rm -rf $(OBJ_DIR) $(BIN_DIR) $(CJSON_DIR)
 
 # Download dependencies
@@ -234,24 +230,4 @@ dist: debug
 	@echo "2. Include: #include \"embed_mcp/embed_mcp.h\""
 	@echo "3. Compile: gcc your_app.c embed_mcp/*.c embed_mcp/*/*.c -I. -o your_app"
 
-# Build libffi
-$(LIBFFI_LIB):
-	@echo "Building libffi..."
-	mkdir -p $(LIBFFI_BUILD_DIR)
-	cd $(LIBFFI_DIR) && \
-	if [ ! -f configure ]; then ./autogen.sh; fi && \
-	if [ ! -f $(LIBFFI_BUILD_DIR)/Makefile ]; then \
-		mkdir -p $(LIBFFI_BUILD_DIR) && \
-		cd $(LIBFFI_BUILD_DIR) && \
-		../configure --enable-static --disable-shared --disable-docs; \
-	fi && \
-	cd $(LIBFFI_BUILD_DIR) && \
-	$(MAKE)
-	@echo "libffi built successfully"
-
-# Clean libffi
-clean-libffi:
-	cd $(LIBFFI_DIR) && $(MAKE) clean || true
-	rm -rf $(LIBFFI_BUILD_DIR)
-
-.PHONY: all clean distclean deps test debug protocol transport application tools utils info check dist clean-libffi
+.PHONY: all clean distclean deps test debug protocol transport application tools utils info check dist
