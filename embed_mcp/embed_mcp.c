@@ -867,6 +867,16 @@ typedef struct {
     mcp_return_type_t return_type;
 } custom_func_data_t;
 
+// Universal function wrapper data
+typedef struct {
+    mcp_universal_func_t wrapper_func;
+    const char** param_names;
+    mcp_param_type_t* param_types;
+    size_t param_count;
+    mcp_return_type_t return_type;
+    void* user_data;
+} universal_func_data_t;
+
 static cJSON* custom_function_wrapper(const cJSON *args, void *user_data) {
     custom_func_data_t* data = (custom_func_data_t*)user_data;
 
@@ -993,6 +1003,124 @@ static cJSON* custom_function_wrapper(const cJSON *args, void *user_data) {
         int* ret = malloc(sizeof(int));
         *ret = func_result;
         result = ret;
+
+    // Add more common function signatures
+    } else if (data->param_count == 2 &&
+               data->param_types[0] == MCP_PARAM_INT &&
+               data->param_types[1] == MCP_PARAM_INT) {
+        // int func(int, int) - very common for math operations
+        typedef int (*func_t)(int, int);
+        func_t func = (func_t)data->original_func;
+
+        int a = *(int*)params[0];
+        int b = *(int*)params[1];
+
+        int func_result = func(a, b);
+        int* ret = malloc(sizeof(int));
+        *ret = func_result;
+        result = ret;
+
+    } else if (data->param_count == 1 &&
+               data->param_types[0] == MCP_PARAM_INT) {
+        // int func(int) - common for single parameter functions
+        typedef int (*func_t)(int);
+        func_t func = (func_t)data->original_func;
+
+        int a = *(int*)params[0];
+        int func_result = func(a);
+        int* ret = malloc(sizeof(int));
+        *ret = func_result;
+        result = ret;
+
+    } else if (data->param_count == 0) {
+        // int func(void) - no parameters
+        if (data->return_type == MCP_RETURN_INT) {
+            typedef int (*func_t)(void);
+            func_t func = (func_t)data->original_func;
+            int func_result = func();
+            int* ret = malloc(sizeof(int));
+            *ret = func_result;
+            result = ret;
+        } else if (data->return_type == MCP_RETURN_DOUBLE) {
+            typedef double (*func_t)(void);
+            func_t func = (func_t)data->original_func;
+            double func_result = func();
+            double* ret = malloc(sizeof(double));
+            *ret = func_result;
+            result = ret;
+        } else if (data->return_type == MCP_RETURN_STRING) {
+            typedef char* (*func_t)(void);
+            func_t func = (func_t)data->original_func;
+            result = func();  // Function returns malloc'd string
+        } else if (data->return_type == MCP_RETURN_VOID) {
+            typedef void (*func_t)(void);
+            func_t func = (func_t)data->original_func;
+            func();
+            result = NULL;
+        }
+
+    } else if (data->param_count == 1 &&
+               data->param_types[0] == MCP_PARAM_DOUBLE) {
+        // double func(double) - common for math functions
+        typedef double (*func_t)(double);
+        func_t func = (func_t)data->original_func;
+
+        double a = *(double*)params[0];
+        double func_result = func(a);
+        double* ret = malloc(sizeof(double));
+        *ret = func_result;
+        result = ret;
+
+    } else if (data->param_count == 3 &&
+               data->param_types[0] == MCP_PARAM_INT &&
+               data->param_types[1] == MCP_PARAM_INT &&
+               data->param_types[2] == MCP_PARAM_INT) {
+        // int func(int, int, int) - common for 3-parameter functions
+        typedef int (*func_t)(int, int, int);
+        func_t func = (func_t)data->original_func;
+
+        int a = *(int*)params[0];
+        int b = *(int*)params[1];
+        int c = *(int*)params[2];
+
+        int func_result = func(a, b, c);
+        int* ret = malloc(sizeof(int));
+        *ret = func_result;
+        result = ret;
+
+    } else if (data->param_count == 2 &&
+               data->param_types[0] == MCP_PARAM_STRING &&
+               data->param_types[1] == MCP_PARAM_STRING) {
+        // char* func(const char*, const char*) - string operations
+        typedef char* (*func_t)(const char*, const char*);
+        func_t func = (func_t)data->original_func;
+
+        const char* a = (const char*)params[0];
+        const char* b = (const char*)params[1];
+        result = func(a, b);  // Function returns malloc'd string
+
+    } else if (data->param_count == 2 &&
+               data->param_types[0] == MCP_PARAM_STRING &&
+               data->param_types[1] == MCP_PARAM_INT) {
+        // char* func(const char*, int) - string with number
+        typedef char* (*func_t)(const char*, int);
+        func_t func = (func_t)data->original_func;
+
+        const char* a = (const char*)params[0];
+        int b = *(int*)params[1];
+        result = func(a, b);  // Function returns malloc'd string
+
+    } else if (data->param_count == 1 &&
+               data->param_types[0] == MCP_PARAM_BOOL) {
+        // int func(bool) - boolean parameter
+        typedef int (*func_t)(int);
+        func_t func = (func_t)data->original_func;
+
+        int a = *(int*)params[0];  // bool stored as int
+        int func_result = func(a);
+        int* ret = malloc(sizeof(int));
+        *ret = func_result;
+        result = ret;
     }
 
     // Clean up parameter memory
@@ -1046,145 +1174,74 @@ static cJSON* custom_function_wrapper(const cJSON *args, void *user_data) {
     return mcp_result;
 }
 
-int embed_mcp_add_tool(embed_mcp_server_t *server,
-                       const char *name,
-                       const char *description,
-                       const char *param_names[],
-                       const char *param_descriptions[],
-                       mcp_param_type_t param_types[],
-                       size_t param_count,
-                       mcp_return_type_t return_type,
-                       void *function_ptr) {
-    if (!server || !name || !description || !function_ptr) {
-        set_error("Invalid parameters");
-        return -1;
+// Universal function wrapper that calls user-provided wrapper function
+static cJSON* universal_function_wrapper(const cJSON *args, void *user_data) {
+    universal_func_data_t* data = (universal_func_data_t*)user_data;
+
+    // Create parameter accessor
+    param_accessor_data_t accessor_data = { .args = args };
+    mcp_param_accessor_t accessor = {
+        .get_int = param_get_int,
+        .get_double = param_get_double,
+        .get_string = param_get_string,
+        .get_bool = param_get_bool,
+        .get_double_array = param_get_double_array,
+        .get_string_array = param_get_string_array,
+        .get_int_array = param_get_int_array,
+        .has_param = param_has_param,
+        .get_param_count = param_get_param_count,
+        .get_json = param_get_json,
+        .data = &accessor_data
+    };
+
+    // Call the user's wrapper function with the parameter accessor
+    void* result = data->wrapper_func(&accessor, data->user_data);
+
+    // Convert result to structured data based on return type
+    cJSON* result_data = NULL;
+    switch (data->return_type) {
+        case MCP_RETURN_INT:
+            if (result) {
+                result_data = cJSON_CreateNumber(*(int*)result);
+                free(result);
+            } else {
+                result_data = cJSON_CreateNumber(0);
+            }
+            break;
+        case MCP_RETURN_DOUBLE:
+            if (result) {
+                result_data = cJSON_CreateNumber(*(double*)result);
+                free(result);
+            } else {
+                result_data = cJSON_CreateNumber(0.0);
+            }
+            break;
+        case MCP_RETURN_STRING:
+            if (result) {
+                result_data = cJSON_CreateString((char*)result);
+                free(result);
+            } else {
+                result_data = cJSON_CreateString("");
+            }
+            break;
+        case MCP_RETURN_VOID:
+            result_data = cJSON_CreateString("Operation completed");
+            if (result) free(result);
+            break;
+        default:
+            result_data = cJSON_CreateString("Unknown result type");
+            if (result) free(result);
+            break;
     }
 
-    if (param_count > 16) {
-        set_error("Too many parameters (max 16)");
-        return -1;
-    }
+    // Use the standard MCP tool success result format
+    cJSON* mcp_result = mcp_tool_create_success_result(result_data);
+    if (result_data) cJSON_Delete(result_data);
 
-    // Validate that if we have parameters, we have all required arrays
-    if (param_count > 0 && (!param_names || !param_descriptions || !param_types)) {
-        set_error("Missing parameter information arrays");
-        return -1;
-    }
-
-    // Create custom function data
-    custom_func_data_t *func_data = malloc(sizeof(custom_func_data_t));
-    if (!func_data) {
-        set_error("Memory allocation failed");
-        return -1;
-    }
-
-    func_data->original_func = function_ptr;
-    func_data->param_count = param_count;
-    func_data->return_type = return_type;
-
-    // Copy parameter names
-    func_data->param_names = malloc(param_count * sizeof(char*));
-    if (!func_data->param_names) {
-        free(func_data);
-        set_error("Memory allocation failed");
-        return -1;
-    }
-
-    for (size_t i = 0; i < param_count; i++) {
-        func_data->param_names[i] = strdup(param_names[i]);
-    }
-
-    // Copy parameter types
-    func_data->param_types = malloc(param_count * sizeof(mcp_param_type_t));
-    if (!func_data->param_types) {
-        for (size_t i = 0; i < param_count; i++) {
-            free((void*)func_data->param_names[i]);
-        }
-        free(func_data->param_names);
-        free(func_data);
-        set_error("Memory allocation failed");
-        return -1;
-    }
-
-    memcpy(func_data->param_types, param_types, param_count * sizeof(mcp_param_type_t));
-
-    // Create parameter descriptions
-    mcp_param_desc_t *params = malloc(param_count * sizeof(mcp_param_desc_t));
-    if (!params) {
-        // Clean up
-        for (size_t i = 0; i < param_count; i++) {
-            free((void*)func_data->param_names[i]);
-        }
-        free(func_data->param_names);
-        free(func_data->param_types);
-        free(func_data);
-        set_error("Memory allocation failed");
-        return -1;
-    }
-
-    for (size_t i = 0; i < param_count; i++) {
-        params[i].name = func_data->param_names[i];
-        params[i].description = param_descriptions[i];  // Use provided descriptions
-        params[i].category = MCP_PARAM_SINGLE;
-        params[i].required = 1;
-        params[i].single_type = param_types[i];
-    }
-
-    // Create input schema
-    cJSON *input_schema = create_schema_from_params(params, param_count);
-    if (!input_schema) {
-        // Clean up
-        free(params);
-        for (size_t i = 0; i < param_count; i++) {
-            free((void*)func_data->param_names[i]);
-        }
-        free(func_data->param_names);
-        free(func_data->param_types);
-        free(func_data);
-        set_error("Failed to create input schema");
-        return -1;
-    }
-
-    // Create tool
-    mcp_tool_t *tool = mcp_tool_create(name, name, description, input_schema,
-                                      custom_function_wrapper, func_data);
-
-    cJSON_Delete(input_schema);
-    free(params);
-
-    if (!tool) {
-        // Clean up
-        for (size_t i = 0; i < param_count; i++) {
-            free((void*)func_data->param_names[i]);
-        }
-        free(func_data->param_names);
-        free(func_data->param_types);
-        free(func_data);
-        set_error("Failed to create tool");
-        return -1;
-    }
-
-    // Register tool
-    if (mcp_tool_registry_register_tool(server->tool_registry, tool) != 0) {
-        mcp_tool_destroy(tool);
-        // Clean up
-        for (size_t i = 0; i < param_count; i++) {
-            free((void*)func_data->param_names[i]);
-        }
-        free(func_data->param_names);
-        free(func_data->param_types);
-        free(func_data);
-        set_error("Failed to register tool");
-        return -1;
-    }
-
-    // Update capabilities to reflect that we now have tools
-    if (server->protocol && server->protocol->config && server->protocol->config->capabilities) {
-        server->protocol->config->capabilities->server.tools = true;
-    }
-
-    return 0;
+    return mcp_result;
 }
+
+
 
 // =============================================================================
 // Resource API Implementation
@@ -1351,4 +1408,155 @@ size_t embed_mcp_get_resource_template_count(embed_mcp_server_t *server) {
     }
 
     return mcp_resource_registry_template_count(server->resource_registry);
+}
+
+int embed_mcp_add_tool(embed_mcp_server_t *server,
+                       const char *name,
+                       const char *description,
+                       const char *param_names[],
+                       const char *param_descriptions[],
+                       mcp_param_type_t param_types[],
+                       size_t param_count,
+                       mcp_return_type_t return_type,
+                       mcp_universal_func_t wrapper_func,
+                       void *user_data) {
+    if (!server || !server->tool_registry) {
+        set_error("Invalid server or tool registry not initialized");
+        return -1;
+    }
+
+    if (!name || !description || !wrapper_func) {
+        set_error("Invalid parameters: name, description, and wrapper_func are required");
+        return -1;
+    }
+
+    if (param_count > 0 && (!param_names || !param_descriptions || !param_types)) {
+        set_error("Invalid parameters: param_names, param_descriptions, and param_types are required when param_count > 0");
+        return -1;
+    }
+
+    // Create universal function data
+    universal_func_data_t *func_data = malloc(sizeof(universal_func_data_t));
+    if (!func_data) {
+        set_error("Memory allocation failed");
+        return -1;
+    }
+
+    func_data->wrapper_func = wrapper_func;
+    func_data->param_count = param_count;
+    func_data->return_type = return_type;
+    func_data->user_data = user_data;
+
+    // Copy parameter names
+    if (param_count > 0) {
+        func_data->param_names = malloc(param_count * sizeof(char*));
+        if (!func_data->param_names) {
+            free(func_data);
+            set_error("Memory allocation failed");
+            return -1;
+        }
+
+        for (size_t i = 0; i < param_count; i++) {
+            func_data->param_names[i] = strdup(param_names[i]);
+        }
+
+        // Copy parameter types
+        func_data->param_types = malloc(param_count * sizeof(mcp_param_type_t));
+        if (!func_data->param_types) {
+            for (size_t i = 0; i < param_count; i++) {
+                free((void*)func_data->param_names[i]);
+            }
+            free(func_data->param_names);
+            free(func_data);
+            set_error("Memory allocation failed");
+            return -1;
+        }
+
+        memcpy(func_data->param_types, param_types, param_count * sizeof(mcp_param_type_t));
+    } else {
+        func_data->param_names = NULL;
+        func_data->param_types = NULL;
+    }
+
+    // Create parameter descriptions
+    mcp_param_desc_t *params = NULL;
+    if (param_count > 0) {
+        params = malloc(param_count * sizeof(mcp_param_desc_t));
+        if (!params) {
+            // Clean up
+            if (func_data->param_names) {
+                for (size_t i = 0; i < param_count; i++) {
+                    free((void*)func_data->param_names[i]);
+                }
+                free(func_data->param_names);
+            }
+            if (func_data->param_types) {
+                free(func_data->param_types);
+            }
+            free(func_data);
+            set_error("Memory allocation failed");
+            return -1;
+        }
+
+        for (size_t i = 0; i < param_count; i++) {
+            params[i].name = func_data->param_names[i];
+            params[i].description = param_descriptions[i];
+            params[i].category = MCP_PARAM_SINGLE;
+            params[i].required = 1;
+            params[i].single_type = param_types[i];
+        }
+    }
+
+    // Create input schema
+    cJSON *input_schema = create_schema_from_params(params, param_count);
+    if (!input_schema && param_count > 0) {
+        // Clean up
+        if (params) free(params);
+        if (func_data->param_names) {
+            for (size_t i = 0; i < param_count; i++) {
+                free((void*)func_data->param_names[i]);
+            }
+            free(func_data->param_names);
+        }
+        if (func_data->param_types) {
+            free(func_data->param_types);
+        }
+        free(func_data);
+        set_error("Failed to create input schema");
+        return -1;
+    }
+
+    // Create tool
+    mcp_tool_t *tool = mcp_tool_create(name, name, description, input_schema,
+                                      universal_function_wrapper, func_data);
+    if (params) free(params);
+
+    if (!tool) {
+        // Clean up
+        if (input_schema) cJSON_Delete(input_schema);
+        if (func_data->param_names) {
+            for (size_t i = 0; i < param_count; i++) {
+                free((void*)func_data->param_names[i]);
+            }
+            free(func_data->param_names);
+        }
+        if (func_data->param_types) {
+            free(func_data->param_types);
+        }
+        free(func_data);
+        set_error("Failed to create tool");
+        return -1;
+    }
+
+    // Register tool
+    if (mcp_tool_registry_register_tool(server->tool_registry, tool) != 0) {
+        mcp_tool_destroy(tool);
+        set_error("Failed to register tool");
+        return -1;
+    }
+
+    // Update capabilities to reflect new tools
+    update_dynamic_capabilities(server);
+
+    return 0;
 }

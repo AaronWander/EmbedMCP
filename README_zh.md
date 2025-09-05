@@ -373,6 +373,83 @@ embed_mcp_add_tool(server, "add", "两个整数相加",
                    param_names, param_descriptions, param_types, 2, MCP_RETURN_INT, add_function);
 ```
 
+## ⚠️ 重要：字符串返回值的内存管理
+
+当您的函数返回 `char*`（字符串）时，您**必须**遵循以下内存管理规则：
+
+### ✅ 正确方式 - 使用 malloc()
+
+```c
+char *getlocation(double s, double t, int p, char *des) {
+    // 动态分配内存
+    char *result = malloc(200);
+    if (!result) return NULL;
+
+    sprintf(result, "位置: %.2f, %.2f, 精度: %d, 描述: %s",
+            s, t, p, des);
+
+    return result;  // 返回 malloc 分配的内存 - MCP 会自动 free()
+}
+```
+
+### ❌ 错误方式 - 这些会导致问题
+
+**不要使用静态数组：**
+```c
+char *getlocation(double s, double t, int p, char *des) {
+    static char result[100];  // ❌ 非线程安全，会被覆盖
+    sprintf(result, "位置: %.2f, %.2f", s, t);
+    return result;  // ❌ 在多线程环境中危险
+}
+```
+
+**不要使用栈数组：**
+```c
+char *getlocation(double s, double t, int p, char *des) {
+    char result[100];  // ❌ 栈内存
+    sprintf(result, "位置: %.2f, %.2f", s, t);
+    return result;  // ❌ 函数返回后内存变为无效
+}
+```
+
+### 为什么有这些规则？
+
+1. **线程安全**：静态变量在多个并发客户端环境下不安全
+2. **内存安全**：栈内存在函数返回后变为无效
+3. **自动清理**：MCP 系统会自动对返回的字符串调用 `free()`
+4. **多会话支持**：每个会话需要自己的内存空间
+
+### 通用包装宏
+
+对于复杂函数，使用通用包装宏系统：
+
+```c
+// 您的业务函数
+char *getlocation(double s, double t, int p, char *des) {
+    char *result = malloc(200);
+    sprintf(result, "位置: %.2f, %.2f, 精度:%d, %s", s, t, p, des);
+    return result;
+}
+
+// 一行宏生成任意函数签名的包装函数
+EMBED_MCP_WRAPPER(getlocation_wrapper, getlocation, STRING,
+                  DOUBLE, s, DOUBLE, t, INT, p, STRING, des)
+
+// 正常注册
+const char* names[] = {"s", "t", "p", "des"};
+const char* descs[] = {"经度", "纬度", "精度", "描述"};
+mcp_param_type_t types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE, MCP_PARAM_INT, MCP_PARAM_STRING};
+
+embed_mcp_add_tool(server, "getlocation", "获取位置信息",
+                   names, descs, types, 4, MCP_RETURN_STRING, getlocation_wrapper, NULL);
+```
+
+通用包装系统支持：
+- **任意数量参数**（0 到无限制）
+- **任意参数类型**（int、double、string、bool）
+- **任意返回类型**（int、double、string、void）
+- **一行宏**无论函数多复杂
+
 ### 参数定义宏
 
 这些宏简化了参数定义：

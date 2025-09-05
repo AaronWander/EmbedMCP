@@ -350,6 +350,83 @@ embed_mcp_add_tool(server, "add", "Add two integers",
                    param_names, param_descriptions, param_types, 2, MCP_RETURN_INT, add_function);
 ```
 
+## ⚠️ Important: Memory Management for String Returns
+
+When your function returns `char*` (string), you **MUST** follow these memory management rules:
+
+### ✅ Correct Way - Use malloc()
+
+```c
+char *getlocation(double s, double t, int p, char *des) {
+    // Allocate memory dynamically
+    char *result = malloc(200);
+    if (!result) return NULL;
+
+    sprintf(result, "Location: %.2f, %.2f, Precision: %d, Description: %s",
+            s, t, p, des);
+
+    return result;  // Return malloc'd memory - MCP will free() it
+}
+```
+
+### ❌ Wrong Ways - These Will Cause Problems
+
+**Don't use static arrays:**
+```c
+char *getlocation(double s, double t, int p, char *des) {
+    static char result[100];  // ❌ Not thread-safe, gets overwritten
+    sprintf(result, "Location: %.2f, %.2f", s, t);
+    return result;  // ❌ Dangerous in multi-threaded environment
+}
+```
+
+**Don't use stack arrays:**
+```c
+char *getlocation(double s, double t, int p, char *des) {
+    char result[100];  // ❌ Stack memory
+    sprintf(result, "Location: %.2f, %.2f", s, t);
+    return result;  // ❌ Memory becomes invalid after function returns
+}
+```
+
+### Why These Rules?
+
+1. **Thread Safety**: Static variables are not safe with multiple concurrent clients
+2. **Memory Safety**: Stack memory becomes invalid after function returns
+3. **Automatic Cleanup**: MCP system automatically calls `free()` on returned strings
+4. **Multi-Session Support**: Each session needs its own memory space
+
+### Universal Wrapper Macros
+
+For complex functions, use the universal wrapper macro system:
+
+```c
+// Your business function
+char *getlocation(double s, double t, int p, char *des) {
+    char *result = malloc(200);
+    sprintf(result, "Location: %.2f, %.2f, P:%d, %s", s, t, p, des);
+    return result;
+}
+
+// One-line wrapper generation for ANY function signature
+EMBED_MCP_WRAPPER(getlocation_wrapper, getlocation, STRING,
+                  DOUBLE, s, DOUBLE, t, INT, p, STRING, des)
+
+// Register normally
+const char* names[] = {"s", "t", "p", "des"};
+const char* descs[] = {"Longitude", "Latitude", "Precision", "Description"};
+mcp_param_type_t types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE, MCP_PARAM_INT, MCP_PARAM_STRING};
+
+embed_mcp_add_tool(server, "getlocation", "Get location information",
+                   names, descs, types, 4, MCP_RETURN_STRING, getlocation_wrapper, NULL);
+```
+
+The universal wrapper system supports:
+- **Any number of parameters** (0 to unlimited)
+- **Any parameter types** (int, double, string, bool)
+- **Any return types** (int, double, string, void)
+- **One line macro** regardless of function complexity
+
 ### Parameter Definition Macros
 
 These macros simplify parameter definition:

@@ -9,7 +9,7 @@
 // =============================================================================
 
 // =============================================================================
-// Pure Business Functions - No Wrappers Needed!
+// Pure Business Functions
 // =============================================================================
 
 // Example 1: Simple math operation - pure business logic
@@ -58,14 +58,15 @@ char* get_weather(const char* city) {
 }
 
 // Example 4: Multi-parameter function with mixed types
-int calculate_score(int base_points, char grade, double multiplier) {
+int calculate_score(int base_points, const char* grade, double multiplier) {
+    char grade_char = grade[0];  // Take first character from string
     printf("[DEBUG] Calculating score: base=%d, grade='%c', multiplier=%.2f\n",
-           base_points, grade, multiplier);
+           base_points, grade_char, multiplier);
 
     double score = base_points * multiplier;
 
     // Apply grade bonus
-    switch (grade) {
+    switch (grade_char) {
         case 'A': case 'a': score *= 1.2; break;
         case 'B': case 'b': score *= 1.1; break;
         case 'C': case 'c': score *= 1.0; break;
@@ -78,6 +79,15 @@ int calculate_score(int base_points, char grade, double multiplier) {
 
     return final_score;
 }
+
+// =============================================================================
+// Universal Wrapper Functions - ONE LINE each using new macro system!
+// =============================================================================
+
+// Generate wrapper functions using the universal macro system
+EMBED_MCP_WRAPPER(add_numbers_wrapper, add_numbers, DOUBLE, DOUBLE, a, DOUBLE, b)
+EMBED_MCP_WRAPPER(get_weather_wrapper, get_weather, STRING, STRING, city)
+EMBED_MCP_WRAPPER(calculate_score_wrapper, calculate_score, INT, INT, base_points, STRING, grade, DOUBLE, multiplier)
 
 // =============================================================================
 // Resource Examples - Demonstrate MCP Resource System
@@ -246,7 +256,7 @@ int main(int argc, char *argv[]) {
 
     if (embed_mcp_add_tool(server, "add", "Add two numbers together",
                                   add_param_names, add_param_descriptions, add_param_types, 2,
-                                  MCP_RETURN_DOUBLE, add_numbers) != 0) {
+                                  MCP_RETURN_DOUBLE, add_numbers_wrapper, NULL) != 0) {
         printf("Failed to register 'add' function: %s\n", embed_mcp_get_error());
     } else {
         printf("Registered add(double, double) -> double\n");
@@ -264,27 +274,27 @@ int main(int argc, char *argv[]) {
 
     if (embed_mcp_add_tool(server, "weather", "Get weather information for a city",
                                   weather_param_names, weather_param_descriptions, weather_param_types, 1,
-                                  MCP_RETURN_STRING, get_weather) != 0) {
+                                  MCP_RETURN_STRING, get_weather_wrapper, NULL) != 0) {
         printf("Failed to register 'weather' function: %s\n", embed_mcp_get_error());
     } else {
         printf("Registered get_weather(const char*) -> char*\n");
     }
 
-    // Example 4: Multi-parameter function - int calculate_score(int, char, double)
+    // Example 4: Multi-parameter function - int calculate_score(int, const char*, double)
     const char* score_param_names[] = {"base_points", "grade", "multiplier"};
     const char* score_param_descriptions[] = {
-        "Base points for the calculation", 
-        "Grade letter (A, B, C, D or other)", 
+        "Base points for the calculation",
+        "Grade letter (A, B, C, D or other)",
         "Score multiplier factor"
     };
-    mcp_param_type_t score_param_types[] = {MCP_PARAM_INT, MCP_PARAM_CHAR, MCP_PARAM_DOUBLE};
+    mcp_param_type_t score_param_types[] = {MCP_PARAM_INT, MCP_PARAM_STRING, MCP_PARAM_DOUBLE};
 
     if (embed_mcp_add_tool(server, "calculate_score", "Calculate score with grade bonus",
                                   score_param_names, score_param_descriptions, score_param_types, 3,
-                                  MCP_RETURN_INT, calculate_score) != 0) {
+                                  MCP_RETURN_INT, calculate_score_wrapper, NULL) != 0) {
         printf("Failed to register 'calculate_score' function: %s\n", embed_mcp_get_error());
     } else {
-        printf("Registered calculate_score(int, char, double) -> int\n");
+        printf("Registered calculate_score(int, const char*, double) -> int\n");
     }
 
     // =============================================================================
