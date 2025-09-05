@@ -1002,75 +1002,48 @@ static cJSON* custom_function_wrapper(const cJSON *args, void *user_data) {
         }
     }
 
-    // Convert result to MCP-compliant JSON format
-    cJSON* json_result = cJSON_CreateObject();
-    if (!json_result) {
-        if (result) free(result);
-        return NULL;
-    }
-
-    // Create content array according to MCP spec
-    cJSON* content = cJSON_CreateArray();
-    if (!content) {
-        cJSON_Delete(json_result);
-        if (result) free(result);
-        return NULL;
-    }
-
-    // Create text content block
-    cJSON* text_block = cJSON_CreateObject();
-    if (!text_block) {
-        cJSON_Delete(content);
-        cJSON_Delete(json_result);
-        if (result) free(result);
-        return NULL;
-    }
-
-    cJSON_AddStringToObject(text_block, "type", "text");
-
-    // Convert result to text based on type
-    char text_buffer[256];
+    // Convert result to structured data based on type
+    cJSON* result_data = NULL;
     switch (data->return_type) {
         case MCP_RETURN_INT:
             if (result) {
-                snprintf(text_buffer, sizeof(text_buffer), "%d", *(int*)result);
+                result_data = cJSON_CreateNumber(*(int*)result);
                 free(result);
             } else {
-                strcpy(text_buffer, "0");
+                result_data = cJSON_CreateNumber(0);
             }
             break;
         case MCP_RETURN_DOUBLE:
             if (result) {
-                snprintf(text_buffer, sizeof(text_buffer), "%.6g", *(double*)result);
+                result_data = cJSON_CreateNumber(*(double*)result);
                 free(result);
             } else {
-                strcpy(text_buffer, "0.0");
+                result_data = cJSON_CreateNumber(0.0);
             }
             break;
         case MCP_RETURN_STRING:
             if (result) {
-                strncpy(text_buffer, (char*)result, sizeof(text_buffer) - 1);
-                text_buffer[sizeof(text_buffer) - 1] = '\0';
+                result_data = cJSON_CreateString((char*)result);
                 free(result);
             } else {
-                strcpy(text_buffer, "");
+                result_data = cJSON_CreateString("");
             }
             break;
         case MCP_RETURN_VOID:
-            strcpy(text_buffer, "Operation completed");
+            result_data = cJSON_CreateString("Operation completed");
             if (result) free(result);
             break;
         default:
-            strcpy(text_buffer, "Unknown result type");
+            result_data = cJSON_CreateString("Unknown result type");
             if (result) free(result);
             break;
     }
 
-    cJSON_AddStringToObject(text_block, "text", text_buffer);
-    cJSON_AddItemToArray(content, text_block);
-    cJSON_AddItemToObject(json_result, "content", content);
+    // Use the standard MCP tool success result format
+    cJSON* mcp_result = mcp_tool_create_success_result(result_data);
+    if (result_data) cJSON_Delete(result_data);
 
-    return json_result;
+    return mcp_result;
 }
 
 int embed_mcp_add_tool(embed_mcp_server_t *server,

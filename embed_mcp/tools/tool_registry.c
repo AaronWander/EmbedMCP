@@ -279,7 +279,9 @@ cJSON *mcp_tool_registry_call_tool(mcp_tool_registry_t *registry, const char *to
         entry->total_execution_time += execution_time;
         entry->average_execution_time = entry->total_execution_time / entry->calls_made;
         
-        if (result && cJSON_GetObjectItem(result, "success") && cJSON_IsTrue(cJSON_GetObjectItem(result, "success"))) {
+        // Check if the result indicates an error using MCP format
+        cJSON *is_error = cJSON_GetObjectItem(result, "isError");
+        if (result && (!is_error || !cJSON_IsTrue(is_error))) {
             entry->calls_successful++;
             registry->total_calls_successful++;
         } else {
