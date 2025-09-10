@@ -222,16 +222,58 @@ void embed_mcp_destroy(embed_mcp_server_t *server);
  * @param user_data Optional user data passed to wrapper function
  * @return 0 on success, -1 on error
  */
+/**
+ * Register a tool with the MCP server
+ *
+ * This function automatically detects parameter format and supports both simple and advanced types:
+ *
+ * **Simple parameters (traditional):**
+ * ```c
+ * const char* names[] = {"a", "b"};
+ * const char* descs[] = {"First number", "Second number"};
+ * mcp_param_type_t types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
+ * embed_mcp_add_tool(server, "add", "Add numbers", names, descs, types, 2,
+ *                    MCP_RETURN_DOUBLE, add_wrapper, NULL);
+ * ```
+ *
+ * **Advanced parameters (arrays, complex types) - Auto-detected:**
+ * ```c
+ * mcp_param_desc_t params[] = {
+ *     MCP_PARAM_ARRAY_DOUBLE_DEF("numbers", "Array of numbers", "A number", 1)
+ * };
+ * // Function automatically detects mcp_param_desc_t* format
+ * embed_mcp_add_tool(server, "sum", "Sum numbers", (void*)params, NULL, NULL, 1,
+ *                    MCP_RETURN_DOUBLE, sum_wrapper, NULL);
+ * ```
+ *
+ * The function automatically detects the parameter format:
+ * - If param_descriptions and param_types are NULL, param_names is treated as mcp_param_desc_t*
+ * - Otherwise, traditional string arrays are expected
+ *
+ * @param server Server instance
+ * @param name Tool name
+ * @param description Tool description
+ * @param param_names Array of parameter names OR mcp_param_desc_t* (auto-detected)
+ * @param param_descriptions Array of parameter descriptions OR NULL for auto-detection
+ * @param param_types Array of parameter types OR NULL for auto-detection
+ * @param param_count Number of parameters
+ * @param return_type Return value type
+ * @param wrapper_func Universal wrapper function
+ * @param user_data Optional user data passed to wrapper function
+ * @return 0 on success, -1 on error
+ */
 int embed_mcp_add_tool(embed_mcp_server_t *server,
                        const char *name,
                        const char *description,
-                       const char *param_names[],
+                       const void *param_names,
                        const char *param_descriptions[],
                        mcp_param_type_t param_types[],
                        size_t param_count,
                        mcp_return_type_t return_type,
                        mcp_universal_func_t wrapper_func,
                        void *user_data);
+
+
 
 
 
@@ -364,12 +406,99 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
 #define STRING_EXTRACT(name, params) const char* name = params->get_string(params, #name)
 #define BOOL_EXTRACT(name, params) bool name = params->get_bool(params, #name)
 
+// Array type extraction helpers
+#define INT_ARRAY_EXTRACT(name, params) \
+    size_t name##_count; \
+    int64_t* name##_raw = params->get_int_array(params, #name, &name##_count); \
+    int* name = NULL; \
+    if (name##_raw) { \
+        name = malloc(name##_count * sizeof(int)); \
+        for (size_t i = 0; i < name##_count; i++) { \
+            name[i] = (int)name##_raw[i]; \
+        } \
+        free(name##_raw); \
+    }
+
+#define DOUBLE_ARRAY_EXTRACT(name, params) \
+    size_t name##_count; \
+    double* name = params->get_double_array(params, #name, &name##_count)
+
+#define STRING_ARRAY_EXTRACT(name, params) \
+    size_t name##_count; \
+    char** name = params->get_string_array(params, #name, &name##_count)
+
+#define BOOL_ARRAY_EXTRACT(name, params) \
+    size_t name##_count; \
+    int64_t* name##_raw = params->get_int_array(params, #name, &name##_count); \
+    bool* name = NULL; \
+    if (name##_raw) { \
+        name = malloc(name##_count * sizeof(bool)); \
+        for (size_t i = 0; i < name##_count; i++) { \
+            name[i] = (name##_raw[i] != 0); \
+        } \
+        free(name##_raw); \
+    }
+
 // Return value helpers
 #define INT_RETURN(result) do { int* ret = malloc(sizeof(int)); *ret = (result); return ret; } while(0)
 #define DOUBLE_RETURN(result) do { double* ret = malloc(sizeof(double)); *ret = (result); return ret; } while(0)
 #define STRING_RETURN(result) return (result)
 #define BOOL_RETURN(result) do { int* ret = malloc(sizeof(int)); *ret = (result); return ret; } while(0)
 #define VOID_RETURN(result) do { (void)(result); return NULL; } while(0)
+
+// Array return value helpers
+#define INT_ARRAY_RETURN(result, count) do { \
+    cJSON* array = cJSON_CreateArray(); \
+    if (result && count > 0) { \
+        for (size_t i = 0; i < count; i++) { \
+            cJSON_AddItemToArray(array, cJSON_CreateNumber(result[i])); \
+        } \
+    } \
+    char* json_str = cJSON_Print(array); \
+    cJSON_Delete(array); \
+    if (result) free(result); \
+    return json_str; \
+} while(0)
+
+#define DOUBLE_ARRAY_RETURN(result, count) do { \
+    cJSON* array = cJSON_CreateArray(); \
+    if (result && count > 0) { \
+        for (size_t i = 0; i < count; i++) { \
+            cJSON_AddItemToArray(array, cJSON_CreateNumber(result[i])); \
+        } \
+    } \
+    char* json_str = cJSON_Print(array); \
+    cJSON_Delete(array); \
+    if (result) free(result); \
+    return json_str; \
+} while(0)
+
+#define STRING_ARRAY_RETURN(result, count) do { \
+    cJSON* array = cJSON_CreateArray(); \
+    if (result && count > 0) { \
+        for (size_t i = 0; i < count; i++) { \
+            cJSON_AddItemToArray(array, cJSON_CreateString(result[i] ? result[i] : "")); \
+            if (result[i]) free(result[i]); \
+        } \
+    } \
+    char* json_str = cJSON_Print(array); \
+    cJSON_Delete(array); \
+    if (result) free(result); \
+    return json_str; \
+} while(0)
+
+#define BOOL_ARRAY_RETURN(result, count) do { \
+    cJSON* array = cJSON_CreateArray(); \
+    if (result && count > 0) { \
+        for (size_t i = 0; i < count; i++) { \
+            cJSON_AddItemToArray(array, cJSON_CreateBool(result[i])); \
+        } \
+    } \
+    char* json_str = cJSON_Print(array); \
+    cJSON_Delete(array); \
+    if (result) free(result); \
+    return json_str; \
+} while(0)
 
 // =============================================================================
 // Universal Wrapper Macro

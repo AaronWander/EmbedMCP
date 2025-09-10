@@ -1,568 +1,338 @@
-<p align="center">
-  <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9"></a>
-  <a href="./README_zh.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9"></a>
-</p>
-
 # EmbedMCP - 嵌入式MCP服务器库
 
-一个轻量级的C语言库，用于创建基于纯业务函数的MCP（模型上下文协议）服务器。
+一个轻量级的C语言库，用于创建MCP（模型上下文协议）服务器，将您现有的C函数转换为AI可访问的工具，只需最少的代码修改。
 
-## 项目状态
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![C Standard](https://img.shields.io/badge/C-99-blue.svg)](https://en.wikipedia.org/wiki/C99)
+[![Platform](https://img.shields.io/badge/Platform-Cross--Platform-green.svg)](#平台支持)
+[![MCP](https://img.shields.io/badge/MCP-2025--06--18-orange.svg)](https://modelcontextprotocol.io/)
 
-✅ **工具系统** - 完整实现，支持灵活的函数API
-✅ **多会话支持** - 并发连接与会话管理
-✅ **HTTP/STDIO传输** - 完整的MCP协议支持
-🚧 **提示系统** - 即将推出
-🚧 **采样系统** - 即将推出
+[English](./README.md) • [简体中文](./README_zh.md)
 
+## 为什么选择 EmbedMCP？
 
-## 特性
+EmbedMCP 在您现有的C代码库和现代AI系统之间架起了桥梁。无需重写您久经考验的C函数，EmbedMCP让您通过标准化的模型上下文协议（MCP）将它们暴露给AI模型，只需最少的代码修改。
 
-- **跨平台** - 相同代码通过通用HAL在15+个平台上运行
-- **多会话支持** - 处理多个并发客户端，支持会话管理
-- **易于集成** - 复制一个文件夹，包含一个头文件即可
-- **多种传输** - HTTP和STDIO支持
+## 核心特性
 
-### 一次编写，到处运行
+- **🚀 简单集成**：复制一个文件夹，包含一个头文件
+- **⚡ 高性能**：直接C函数调用，开销最小
+- **🔧 跨平台**：通过通用HAL在15+个平台上运行
+- **📦 零依赖**：自包含库，无外部依赖
+- **🎯 两种注册方法**：简单函数用魔法宏，复杂函数完全控制
+- **🌐 多种传输**：HTTP和STDIO支持不同用例
+- **🧠 智能内存管理**：自动清理，明确所有权规则
+- **📊 数组支持**：处理简单参数和复杂数据结构
+
+## 快速开始
+
+### 安装
+
+1. **下载 EmbedMCP**
+   ```bash
+   git clone https://github.com/AaronWander/EmbedMCP.git
+   cd EmbedMCP
+   ```
+
+2. **复制到您的项目**
+   ```bash
+   cp -r embed_mcp/ your_project/
+   ```
+
+### 基本用法
+
 ```c
-// 这段代码在所有平台上完全相同
+#include "embed_mcp/embed_mcp.h"
+
+// 您的业务函数
 double add_numbers(double a, double b) {
-    return a + b;  // 纯业务逻辑
+    return a + b;
 }
+
+// 使用宏生成包装器
+EMBED_MCP_WRAPPER(add_wrapper, add_numbers, DOUBLE, DOUBLE, a, DOUBLE, b)
 
 int main() {
     embed_mcp_config_t config = {
-        .name = "MyApp",
+        .name = "MathServer",
         .version = "1.0.0",
-        .instructions = "简单的数学服务器。使用 'add' 工具来计算两个数字的和。",
+        .instructions = "简单的数学运算服务器",
         .port = 8080
     };
 
     embed_mcp_server_t *server = embed_mcp_create(&config);
 
-    // 注册加法函数
-    const char* param_names[] = {"a", "b"};
-    mcp_param_type_t param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
-    embed_mcp_add_tool(server, "add", "Add numbers", param_names, param_types, 2, MCP_RETURN_DOUBLE, add_numbers);
+    // 注册函数
+    const char* names[] = {"a", "b"};
+    const char* descs[] = {"第一个数字", "第二个数字"};
+    mcp_param_type_t types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
 
-    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);  // 在Linux、RTOS、ROS2等平台上都能工作
+    embed_mcp_add_tool(server, "add", "两个数字相加",
+                       names, descs, types, 2, MCP_RETURN_DOUBLE, add_wrapper, NULL);
+
+    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
     embed_mcp_destroy(server);
     return 0;
 }
 ```
 
-
-
-## 快速开始
-
-1. 复制`embed_mcp/`文件夹到您的项目
-2. 包含`#include "embed_mcp/embed_mcp.h"`
-3. 编译所有`.c`文件
-
-完成！您有了一个可工作的MCP服务器。
-
-
-### MCP Server初始化配置信息示例
-EmbedMCP根据您实际实现的功能自动生成服务器能力：
-
-```json
-{
-  "capabilities": {
-    "tools": {"listChanged": true},     // 仅在注册工具时出现
-    "resources": {"listChanged": true}, // 仅在添加资源时出现
-    "prompts": {"listChanged": true},   // 仅在添加提示时出现
-    "logging": {}                       // 始终可用于调试
-  }
-}
-```
-
-### MCP Server配置信息示例
-配置有用的说明，显示在MCP客户端中：
-
-```c
-embed_mcp_config_t config = {
-    .name = "天气服务器",
-    .version = "1.0.0",
-    .instructions = "天气信息服务器。使用 'get_weather(城市)' 获取任意城市的当前天气。",
-    // ... 其他配置
-};
-```
-
-### MCP Server会话配置信息示例
-```c
-embed_mcp_config_t config = {
-    .max_connections = 10,    // 最多10个并发客户端
-    .session_timeout = 3600,  // 1小时会话超时
-    .enable_sessions = 1,     // 启用会话管理
-    .auto_cleanup = 1         // 自动清理过期会话
-};
-```
-
-这些说明帮助用户理解如何使用您的服务器，并显示在MCP Inspector、Dify和其他客户端中。
-
-## 集成指南
-
-**💡 快速开始：** 查看 `examples/` 文件夹中的完整示例！
-
-### 步骤1：复制库文件
-
-将 `embed_mcp/` 文件夹复制到您的项目：
+### 构建和运行（例程）
 
 ```bash
-# 将整个embed_mcp文件夹复制到您的项目
-cp -r /path/to/EmbedMCP/embed_mcp/ your_project/
+# 构建
+make
+
+# 运行HTTP服务器
+./bin/mcp_server --transport http --port 8080
+
+# 或运行STDIO服务器（用于Claude Desktop）
+./bin/mcp_server --transport stdio
 ```
 
-您的项目结构将如下所示：
-```
-your_project/
-├── main.c                     # 您的应用程序代码
-├── embed_mcp/                 # EmbedMCP库（已复制）
-│   ├── embed_mcp.h           # 主API头文件
-│   ├── embed_mcp.c           # 主API实现
-│   ├── Makefile.inc          # Makefile配置
-│   ├── application/          # 会话管理和多客户端支持
-│   ├── cjson/                # JSON依赖
-│   ├── hal/                  # 通用硬件抽象层
-│   │   ├── platform_hal.h    # 通用HAL接口定义
-│   │   ├── linux_hal.c       # 基于mongoose的HAL实现
-│   │   ├── freertos_hal.c    # FreeRTOS HAL实现
-│   │   └── custom_platform_hal.c # 自定义平台HAL示例
-│   ├── platform/             # 平台特定实现
-│   │   └── linux/            # Linux平台（mongoose库）
-│   ├── protocol/             # MCP协议实现
-│   │   ├── mcp_protocol.c    # 核心协议逻辑和动态能力检测
-│   │   ├── protocol_state.c  # 协议状态管理
-│   │   └── ...               # 其他协议文件
-│   ├── tools/                # 工具和资源系统
-│   │   ├── builtin_tools.c   # 内置工具实现
-│   │   ├── tool_registry.c   # 工具注册和管理
-│   │   ├── resource_registry.c # 资源注册和管理
-│   │   └── file_resource_handler.c # 文件资源支持
-│   ├── transport/            # 通过通用HAL的HTTP/STDIO传输
-│   └── utils/                # 工具库（日志、UUID、base64等）
-└── Makefile
-```
+## 函数注册
 
-### 步骤2：包含头文件
+EmbedMCP根据您函数的复杂性支持两种注册方式：
 
-在您的源代码中，包含主头文件：
+### 简单函数（推荐）
+
+对于基本参数类型（int、double、string、bool），使用魔法宏：
 
 ```c
-#include "embed_mcp.h"
-
-// 您的业务函数 - 无需处理JSON！
+// 业务函数
 double add_numbers(double a, double b) {
     return a + b;
 }
 
-int main() {
-    // 创建服务器配置
-    embed_mcp_config_t config = {
-        .name = "MyApp",
-        .version = "1.0.0",
-        .instructions = "数学工具服务器。使用 'add' 工具来计算两个数字的和。",
-        .host = "0.0.0.0",      // HTTP绑定地址
-        .port = 8080,           // HTTP端口
-        .path = "/mcp",         // HTTP端点路径
-        .max_tools = 100,       // 最大工具数量
-        .debug = 0,             // 调试日志（0=关闭，1=开启）
+// 一行生成包装器
+EMBED_MCP_WRAPPER(add_wrapper, add_numbers, DOUBLE, DOUBLE, a, DOUBLE, b)
 
-        // 多会话配置
-        .max_connections = 10,  // 最大并发连接数
-        .session_timeout = 3600,// 会话超时时间（秒）
-        .enable_sessions = 1,   // 启用会话管理
-        .auto_cleanup = 1       // 自动清理过期会话
-    };
+// 注册
+const char* names[] = {"a", "b"};
+const char* descs[] = {"第一个数字", "第二个数字"};
+mcp_param_type_t types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
 
-    // 创建服务器
-    embed_mcp_server_t *server = embed_mcp_create(&config);
+embed_mcp_add_tool(server, "add", "两个数字相加",
+                   names, descs, types, 2, MCP_RETURN_DOUBLE, add_wrapper, NULL);
+```
 
-    // 注册您的函数，指定参数名称和类型
-    const char* param_names[] = {"a", "b"};
-    mcp_param_type_t param_types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE};
+### 数组函数（高级）
 
-    embed_mcp_add_tool(server, "add", "两数相加",
-                       param_names, param_types, 2,
-                       MCP_RETURN_DOUBLE, add_numbers);
+对于包含数组参数的函数，需要传统包装器：
 
-    // 运行服务器
-    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
-
-    // 清理
-    embed_mcp_destroy(server);
-    return 0;
+```c
+// 业务函数
+double sum_numbers(double* numbers, size_t count) {
+    double sum = 0.0;
+    for (size_t i = 0; i < count; i++) {
+        sum += numbers[i];
+    }
+    return sum;
 }
-```
 
-### 步骤3：编译您的项目
+// 传统包装器（处理内存管理）
+void* sum_wrapper(mcp_param_accessor_t* params, void* user_data) {
+    size_t count;
+    double* numbers = params->get_double_array(params, "numbers", &count);
 
-**使用提供的Makefile配置**
-```makefile
-# 在您的Makefile中包含
-include embed_mcp/Makefile.inc
+    double result_val = sum_numbers(numbers, count);
+    free(numbers); // 清理
 
-my_app: main.c $(EMBED_MCP_SOURCES)
-	$(CC) $(EMBED_MCP_INCLUDES) main.c $(EMBED_MCP_SOURCES) $(EMBED_MCP_LIBS) -o my_app
-```
-
-
-## 核心数据结构
-
-### 服务器配置 (`embed_mcp_config_t`)
-
-```c
-typedef struct {
-    const char *name;           // 服务器名称（在MCP协议中显示）
-    const char *version;        // 服务器版本（在MCP协议中显示）
-    const char *instructions;   // 服务器使用说明（可选，在MCP协议中显示）
-    const char *host;           // HTTP绑定地址（默认："0.0.0.0"）
-    int port;                   // HTTP端口号（默认：8080）
-    const char *path;           // HTTP端点路径（默认："/mcp"）
-    int max_tools;              // 允许的最大工具数量（默认：100）
-    int debug;                  // 启用调试日志（0=关闭，1=开启，默认：0）
-
-    // 多会话支持
-    int max_connections;        // 最大并发连接数（默认：10）
-    int session_timeout;        // 会话超时时间（秒）（默认：3600）
-    int enable_sessions;        // 启用会话管理（0=关闭，1=开启，默认：1）
-    int auto_cleanup;           // 自动清理过期会话（0=关闭，1=开启，默认：1）
-} embed_mcp_config_t;
-```
-
-**配置字段：**
-
-| 字段 | 类型 | 描述 | 典型值 |
-|------|------|------|--------|
-| `name` | `const char*` | 服务器名称（在MCP协议中显示） | `"MyApp"` |
-| `version` | `const char*` | 服务器版本（在MCP协议中显示） | `"1.0.0"` |
-| `instructions` | `const char*` | 服务器使用说明（可选） | `"使用 'add' 来计算数字"` |
-| `host` | `const char*` | HTTP绑定地址 | `"0.0.0.0"` |
-| `port` | `int` | HTTP端口号 | `8080` |
-| `path` | `const char*` | HTTP端点路径 | `"/mcp"` |
-| `max_tools` | `int` | 允许的最大工具数量 | `100` |
-| `debug` | `int` | 启用调试日志（0=关闭，1=开启） | `0` |
-| `max_connections` | `int` | 最大并发连接数 | `10` |
-| `session_timeout` | `int` | 会话超时时间（秒） | `3600` |
-| `enable_sessions` | `int` | 启用会话管理（0=关闭，1=开启） | `1` |
-| `auto_cleanup` | `int` | 自动清理过期会话（0=关闭，1=开启） | `1` |
-
-### 参数描述 (`mcp_param_desc_t`)
-
-```c
-typedef struct {
-    const char *name;                   // 参数名称（在JSON中使用）
-    const char *description;            // LLM可读的参数描述
-    mcp_param_category_t category;      // 参数类别（单值/数组/对象）
-    int required;                       // 1表示必需，0表示可选
-
-    union {
-        mcp_param_type_t single_type;   // 单值参数
-        mcp_array_desc_t array_desc;    // 数组参数
-        const char *object_schema;      // 复杂对象的JSON Schema字符串
-    };
-} mcp_param_desc_t;
-```
-
-### 参数访问器 (`mcp_param_accessor_t`)
-
-参数访问器提供对工具参数的类型安全访问：
-
-```c
-struct mcp_param_accessor {
-    // 基本类型的类型安全获取器
-    int64_t (*get_int)(mcp_param_accessor_t* self, const char* name);
-    double (*get_double)(mcp_param_accessor_t* self, const char* name);
-    const char* (*get_string)(mcp_param_accessor_t* self, const char* name);
-    int (*get_bool)(mcp_param_accessor_t* self, const char* name);
-
-    // 常见MCP模式的数组获取器
-    double* (*get_double_array)(mcp_param_accessor_t* self, const char* name, size_t* count);
-    char** (*get_string_array)(mcp_param_accessor_t* self, const char* name, size_t* count);
-    int64_t* (*get_int_array)(mcp_param_accessor_t* self, const char* name, size_t* count);
-
-    // 工具函数
-    int (*has_param)(mcp_param_accessor_t* self, const char* name);
-    size_t (*get_param_count)(mcp_param_accessor_t* self);
-
-    // 对于罕见的复杂情况：直接JSON访问
-    const cJSON* (*get_json)(mcp_param_accessor_t* self, const char* name);
-};
-```
-
-## API参考
-
-### 核心函数
-
-#### 服务器管理
-
-```c
-// 创建MCP服务器实例
-embed_mcp_server_t *embed_mcp_create(const embed_mcp_config_t *config);
-
-// 销毁服务器实例并释放资源
-void embed_mcp_destroy(embed_mcp_server_t *server);
-
-// 停止运行中的服务器（可从信号处理器调用）
-void embed_mcp_stop(embed_mcp_server_t *server);
-```
-
-#### 服务器执行
-
-```c
-// 使用指定传输方式运行服务器
-// transport: EMBED_MCP_TRANSPORT_STDIO 或 EMBED_MCP_TRANSPORT_HTTP
-// 此函数会阻塞直到服务器停止
-int embed_mcp_run(embed_mcp_server_t *server, embed_mcp_transport_t transport);
-```
-
-#### 工具注册
-
-```c
-// 注册工具函数，支持灵活的参数规范
-int embed_mcp_add_tool(embed_mcp_server_t *server,
-                       const char *name,
-                       const char *description,
-                       const char *param_names[],
-                       const char *param_descriptions[],
-                       mcp_param_type_t param_types[],
-                       size_t param_count,
-                       mcp_return_type_t return_type,
-                       void *function_ptr);
-```
-
-**函数参数：**
-- `server` - 使用 `embed_mcp_create()` 创建的服务器实例
-- `name` - 唯一工具名称（在MCP协议中使用）
-- `description` - 人类可读的工具描述
-- `param_names` - 参数名称数组
-- `param_descriptions` - 参数描述数组（用于MCP inputSchema）
-- `param_types` - 参数类型数组
-- `param_count` - 参数数量
-- `return_type` - 返回类型（`MCP_RETURN_DOUBLE`、`MCP_RETURN_INT`、`MCP_RETURN_STRING`、`MCP_RETURN_VOID`）
-- `function_ptr` - 指向您的C函数的指针
-
-### 错误处理
-
-```c
-// 获取最后的错误消息（如果没有错误返回NULL）
-const char *embed_mcp_get_error(void);
-```
-
-### 参数类型
-
-注册工具时使用这些参数类型：
-
-```c
-typedef enum {
-    MCP_PARAM_INT,        // 整数参数
-    MCP_PARAM_DOUBLE,     // 双精度浮点数参数
-    MCP_PARAM_STRING,     // 字符串参数
-    MCP_PARAM_CHAR        // 字符参数
-} mcp_param_type_t;
-```
-
-**使用示例：**
-```c
-// 对于函数: int add(int a, int b)
-const char* param_names[] = {"a", "b"};
-const char* param_descriptions[] = {"第一个整数", "第二个整数"};
-mcp_param_type_t param_types[] = {MCP_PARAM_INT, MCP_PARAM_INT};
-
-embed_mcp_add_tool(server, "add", "两个整数相加",
-                   param_names, param_descriptions, param_types, 2, MCP_RETURN_INT, add_function);
-```
-
-## ⚠️ 重要：字符串返回值的内存管理
-
-当您的函数返回 `char*`（字符串）时，您**必须**遵循以下内存管理规则：
-
-### ✅ 正确方式 - 使用 malloc()
-
-```c
-char *getlocation(double s, double t, int p, char *des) {
-    // 动态分配内存
-    char *result = malloc(200);
-    if (!result) return NULL;
-
-    sprintf(result, "位置: %.2f, %.2f, 精度: %d, 描述: %s",
-            s, t, p, des);
-
-    return result;  // 返回 malloc 分配的内存 - MCP 会自动 free()
-}
-```
-
-### ❌ 错误方式 - 这些会导致问题
-
-**不要使用静态数组：**
-```c
-char *getlocation(double s, double t, int p, char *des) {
-    static char result[100];  // ❌ 非线程安全，会被覆盖
-    sprintf(result, "位置: %.2f, %.2f", s, t);
-    return result;  // ❌ 在多线程环境中危险
-}
-```
-
-**不要使用栈数组：**
-```c
-char *getlocation(double s, double t, int p, char *des) {
-    char result[100];  // ❌ 栈内存
-    sprintf(result, "位置: %.2f, %.2f", s, t);
-    return result;  // ❌ 函数返回后内存变为无效
-}
-```
-
-### 为什么有这些规则？
-
-1. **线程安全**：静态变量在多个并发客户端环境下不安全
-2. **内存安全**：栈内存在函数返回后变为无效
-3. **自动清理**：MCP 系统会自动对返回的字符串调用 `free()`
-4. **多会话支持**：每个会话需要自己的内存空间
-
-### 通用包装宏
-
-对于复杂函数，使用通用包装宏系统：
-
-```c
-// 您的业务函数
-char *getlocation(double s, double t, int p, char *des) {
-    char *result = malloc(200);
-    sprintf(result, "位置: %.2f, %.2f, 精度:%d, %s", s, t, p, des);
+    double* result = malloc(sizeof(double));
+    *result = result_val;
     return result;
 }
 
-// 一行宏生成任意函数签名的包装函数
-EMBED_MCP_WRAPPER(getlocation_wrapper, getlocation, STRING,
-                  DOUBLE, s, DOUBLE, t, INT, p, STRING, des)
+// 使用数组参数注册
+mcp_param_desc_t params[] = {
+    MCP_PARAM_ARRAY_DOUBLE_DEF("numbers", "数字数组", "一个数字", 1)
+};
 
-// 正常注册
-const char* names[] = {"s", "t", "p", "des"};
-const char* descs[] = {"经度", "纬度", "精度", "描述"};
-mcp_param_type_t types[] = {MCP_PARAM_DOUBLE, MCP_PARAM_DOUBLE, MCP_PARAM_INT, MCP_PARAM_STRING};
-
-embed_mcp_add_tool(server, "getlocation", "获取位置信息",
-                   names, descs, types, 4, MCP_RETURN_STRING, getlocation_wrapper, NULL);
+embed_mcp_add_tool(server, "sum", "数字求和", params, NULL, NULL, 1,
+                   MCP_RETURN_DOUBLE, sum_wrapper, NULL);
 ```
 
-通用包装系统支持：
-- **任意数量参数**（0 到无限制）
-- **任意参数类型**（int、double、string、bool）
-- **任意返回类型**（int、double、string、void）
-- **一行宏**无论函数多复杂
+## 内存管理
 
-### 参数定义宏
+EmbedMCP自动处理大部分内存管理：
 
-这些宏简化了参数定义：
+- **参数**：所有输入参数在函数返回后自动释放
+- **JSON处理**：请求/响应解析和清理由内部处理
+- **数组**：动态数组自动分配和释放
+- **错误处理**：即使发生错误也会正确清理内存
+
+**您的责任**：字符串返回值必须使用 `malloc()`：
 
 ```c
-// 单值参数
-MCP_PARAM_DOUBLE_DEF(name, description, required)   // 双精度参数
-MCP_PARAM_INT_DEF(name, description, required)      // 整数参数
-MCP_PARAM_STRING_DEF(name, description, required)   // 字符串参数
-MCP_PARAM_BOOL_DEF(name, description, required)     // 布尔参数
+char* get_weather(const char* city) {
+    char* result = malloc(200);  // ✅ EmbedMCP会调用free()
+    sprintf(result, "Weather for %s: Sunny", city);
+    return result;
+}
+```
 
-// 数组参数
+## 服务器模式
+
+### HTTP传输
+用于Web集成和开发：
+```bash
+./my_server --transport http --port 8080
+```
+- 多个并发客户端
+- REST API集成
+- Web应用后端
+- 开发和测试
+
+### STDIO传输  
+用于MCP客户端如Claude Desktop：
+```bash
+./my_server --transport stdio
+```
+- Claude Desktop集成
+- AI助手工具
+- 命令行工作流
+- 单客户端通信
+
+## 参数定义宏
+
+对于数组参数，使用这些便利宏：
+
+```c
+// 数组参数宏
 MCP_PARAM_ARRAY_DOUBLE_DEF(name, desc, elem_desc, required)  // 双精度数组
 MCP_PARAM_ARRAY_STRING_DEF(name, desc, elem_desc, required)  // 字符串数组
 MCP_PARAM_ARRAY_INT_DEF(name, desc, elem_desc, required)     // 整数数组
 
-// 复杂对象参数
-MCP_PARAM_OBJECT_DEF(name, description, json_schema, required)  // 自定义JSON对象
+// 单一参数宏
+MCP_PARAM_DOUBLE_DEF(name, description, required)   // 双精度参数
+MCP_PARAM_STRING_DEF(name, description, required)   // 字符串参数
 ```
 
-**参数：**
-- `name` - 参数名称（字符串字面量）
-- `description` - 人类可读描述（字符串字面量）
-- `elem_desc` - 数组元素描述（字符串字面量）
-- `json_schema` - 对象验证的JSON Schema字符串
-- `required` - 1表示必需，0表示可选
+## 示例服务器
 
-### 返回类型
-
-```c
-typedef enum {
-    MCP_RETURN_DOUBLE,    // 返回双精度值
-    MCP_RETURN_INT,       // 返回整数值
-    MCP_RETURN_STRING,    // 返回字符串值（调用者必须释放）
-    MCP_RETURN_VOID       // 无返回值
-} mcp_return_type_t;
-```
-
-### 传输类型
-
-```c
-typedef enum {
-    EMBED_MCP_TRANSPORT_STDIO,    // 标准输入/输出传输
-    EMBED_MCP_TRANSPORT_HTTP      // HTTP传输
-} embed_mcp_transport_t;
-```
-### 构建示例（开发）
-
-对于开发和测试，您可以构建包含的示例：
+包含的示例演示了所有EmbedMCP功能：
 
 ```bash
-make debug    # 带符号的调试构建
-make clean    # 清理构建文件
+# 构建并运行示例
+make && ./bin/mcp_server --transport stdio
 ```
 
-### 运行示例服务器
+### 可用的演示工具
 
-```bash
-# 构建并运行示例服务器（使用embed_mcp/库 - 自用验证！）
-make
-./bin/mcp_server -t http -p 8080
-
-# 或使用STDIO传输
-./bin/mcp_server -t stdio
-
-# 启用调试日志
-./bin/mcp_server -t http -p 8080 -d
-```
-
-
-示例服务器包含演示工具和资源：
-
-**工具**（使用`embed_mcp_add_tool`注册）：
-- `add(a, b)` - 两个数字相加（演示基础数学运算）
-- `weather(city)` - 获取天气信息（演示字符串处理，支持济南）
-- `calculate_score(base_points, grade, multiplier)` - 计算带等级奖励的分数（演示混合参数类型）
-
-**资源**（演示资源系统）：
-- `config://readme` - 项目README（静态文本资源）
-- `status://system` - 系统状态（动态JSON资源）
-- `config://server` - 服务器配置（动态JSON资源）
-- `file://example.txt` - 示例文本文件（文件资源）
-- `file:///./{path}` - 项目文件模板（文件资源模板）
-- `file:///./examples/{path}` - 示例模板（文件资源模板）
+| 工具 | 参数 | 描述 | 示例 |
+|------|------|------|------|
+| `add` | `a: number, b: number` | 两个数字相加 | `add(10, 20)` → `30` |
+| `sum_numbers` | `numbers: number[]` | 数字数组求和 | `sum_numbers([1,2,3])` → `6` |
+| `join_strings` | `strings: string[], separator: string` | 连接字符串数组 | `join_strings(["a","b"], ",")` → `"a,b"` |
+| `weather` | `city: string` | 获取天气信息 | `weather("济南")` → 天气报告 |
+| `calculate_score` | `base_points: int, grade: string, multiplier: number` | 计算带奖励的分数 | `calculate_score(80, "A", 1.2)` → `120` |
 
 ### 使用MCP Inspector测试
 
-1. 打开MCP Inspector：访问 https://inspector.mcp.dev
-2. 运行您的服务器：`./bin/mcp_server -t http -p 8080`
-3. 在MCP Inspector中连接
-4. 连接到：`http://localhost:8080/mcp`
+1. 启动服务器：`./bin/mcp_server --transport http --port 8080`
+2. 打开 [MCP Inspector](https://inspector.mcp.dev)
+3. 连接到：`http://localhost:8080/mcp`
+4. 测试可用工具
 
+## 平台支持
 
+EmbedMCP设计为在嵌入式和桌面系统上最大程度的可移植性：
 
+### 嵌入式系统
+- **RTOS**：FreeRTOS、Zephyr、ThreadX、embOS
+- **MCU**：STM32、ESP32、Nordic nRF系列
+- **SBC**：Raspberry Pi、BeagleBone、Orange Pi
 
+### 桌面和服务器
+- **操作系统**：Linux、macOS、Windows
+- **容器**：Docker、Podman
+- **云**：AWS、Azure、GCP
 
-### 错误处理
-始终检查返回值并使用 `embed_mcp_get_error()` 获取详细错误信息
+### 实时系统
+- **工业**：QNX、VxWorks
+- **汽车**：AUTOSAR Classic/Adaptive
+- **航空航天**：VxWorks 653、PikeOS
 
-### 传输类型
-- **HTTP传输：** 最适合Web集成，支持多个并发客户端
-- **STDIO传输：** 最适合MCP客户端集成（Claude Desktop等）
+### 要求
+- **最低**：C99编译器，64KB RAM，100KB flash
+- **推荐**：512KB RAM用于复杂应用
+- **依赖**：无（自包含）
 
+## 应用场景
 
+### 工业物联网
+- **传感器数据处理**：将C传感器驱动暴露给AI模型
+- **设备监控**：机器数据的实时分析
+- **预测性维护**：AI驱动的故障预测
+
+### 嵌入式AI
+- **边缘计算**：在嵌入式设备上运行AI推理
+- **智能设备**：语音助手、智能摄像头、物联网中枢
+- **机器人技术**：AI控制的机器人系统
+
+### 遗留系统集成
+- **现代化C代码库**：为现有系统添加AI功能
+- **科学计算**：将数值库暴露给AI
+- **金融系统**：高频交易算法
+
+## 故障排除
+
+### 常见问题
+
+**构建错误：**
+```bash
+# 缺少依赖
+make deps
+
+# 清理构建
+make clean && make
+```
+
+**运行时错误：**
+```bash
+# 启用调试日志
+./bin/mcp_server --transport stdio --debug
+
+# 检查内存使用
+valgrind ./bin/mcp_server --transport stdio
+```
+
+**连接问题：**
+- 确保正确的传输模式（HTTP vs STDIO）
+- 检查HTTP模式的防火墙设置
+- 验证MCP客户端配置
 
 ## 贡献
 
-我们欢迎贡献！请查看CONTRIBUTING.md了解如何为此项目做贡献的指南。
+我们欢迎贡献！请查看我们的[贡献指南](CONTRIBUTING.md)：
+
+1. **Fork** 仓库
+2. **创建** 功能分支 (`git checkout -b feature/amazing-feature`)
+3. **提交** 更改 (`git commit -m 'Add amazing feature'`)
+4. **测试** 多个平台
+5. **推送** 到分支 (`git push origin feature/amazing-feature`)
+6. **打开** Pull Request
+
+### 开发设置
+
+```bash
+# 克隆仓库
+git clone https://github.com/AaronWander/EmbedMCP.git
+cd EmbedMCP
+
+# 构建调试版本
+make debug
+
+# 运行测试
+make test
+```
 
 ## 许可证
 
-此项目采用MIT许可证 - 详情请参阅LICENSE文件。
+本项目采用MIT许可证 - 详见 [LICENSE](LICENSE) 文件。
 
----
+## 支持
 
-**EmbedMCP** - 让嵌入式设备共连智能
+- **文档**：[Wiki](https://github.com/AaronWander/EmbedMCP/wiki)
+- **问题**：[GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues)
+- **讨论**：[GitHub Discussions](https://github.com/AaronWander/EmbedMCP/discussions)
+- **邮箱**：[aaron@example.com](mailto:aaron@example.com)

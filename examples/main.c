@@ -81,6 +81,111 @@ int calculate_score(int base_points, const char* grade, double multiplier) {
 }
 
 // =============================================================================
+// Array Functions - Using traditional wrapper approach for now
+// =============================================================================
+
+// Array sum function - double[] -> double
+double sum_numbers(double* numbers, size_t count) {
+    if (!numbers || count == 0) return 0.0;
+
+    double sum = 0.0;
+    for (size_t i = 0; i < count; i++) {
+        sum += numbers[i];
+        printf("[DEBUG] Adding %.2f, running sum: %.2f\n", numbers[i], sum);
+    }
+
+    printf("[DEBUG] Final sum of %zu numbers: %.2f\n", count, sum);
+    return sum;
+}
+
+// Traditional wrapper for array function
+void* sum_numbers_wrapper(mcp_param_accessor_t* params, void* user_data) {
+    (void)user_data;
+
+    size_t count;
+    double* numbers = params->get_double_array(params, "numbers", &count);
+
+    if (!numbers || count == 0) {
+        double* result = malloc(sizeof(double));
+        *result = 0.0;
+        return result;
+    }
+
+    double sum = sum_numbers(numbers, count);
+    free(numbers); // Clean up array memory
+
+    double* result = malloc(sizeof(double));
+    *result = sum;
+    return result;
+}
+
+// String array join function - string[], string -> string
+char* join_strings(char** strings, size_t count, const char* separator) {
+    if (!strings || count == 0) return strdup("");
+    if (!separator) separator = ",";
+
+    printf("[DEBUG] Joining %zu strings with separator '%s'\n", count, separator);
+
+    // Calculate total length needed
+    size_t total_len = 0;
+    size_t sep_len = strlen(separator);
+
+    for (size_t i = 0; i < count; i++) {
+        if (strings[i]) {
+            total_len += strlen(strings[i]);
+            printf("[DEBUG] String %zu: '%s' (length: %zu)\n", i, strings[i], strlen(strings[i]));
+        }
+        if (i < count - 1) total_len += sep_len;
+    }
+
+    char* result = malloc(total_len + 1);
+    if (!result) return strdup("Error: Memory allocation failed");
+
+    result[0] = '\0';
+    for (size_t i = 0; i < count; i++) {
+        if (strings[i]) {
+            strcat(result, strings[i]);
+        }
+        if (i < count - 1) {
+            strcat(result, separator);
+        }
+    }
+
+    printf("[DEBUG] Joined result: '%s'\n", result);
+    return result;
+}
+
+// Traditional wrapper for string array function
+void* join_strings_wrapper(mcp_param_accessor_t* params, void* user_data) {
+    (void)user_data;
+
+    size_t count;
+    char** strings = params->get_string_array(params, "strings", &count);
+    const char* separator = params->get_string(params, "separator");
+
+    if (!strings || count == 0) {
+        if (strings) {
+            // Clean up string array memory
+            for (size_t i = 0; i < count; i++) {
+                if (strings[i]) free(strings[i]);
+            }
+            free(strings);
+        }
+        return strdup("");
+    }
+
+    char* result = join_strings(strings, count, separator);
+
+    // Clean up string array memory
+    for (size_t i = 0; i < count; i++) {
+        if (strings[i]) free(strings[i]);
+    }
+    free(strings);
+
+    return result;
+}
+
+// =============================================================================
 // Universal Wrapper Functions - ONE LINE each using new macro system!
 // =============================================================================
 
@@ -88,6 +193,9 @@ int calculate_score(int base_points, const char* grade, double multiplier) {
 EMBED_MCP_WRAPPER(add_numbers_wrapper, add_numbers, DOUBLE, DOUBLE, a, DOUBLE, b)
 EMBED_MCP_WRAPPER(get_weather_wrapper, get_weather, STRING, STRING, city)
 EMBED_MCP_WRAPPER(calculate_score_wrapper, calculate_score, INT, INT, base_points, STRING, grade, DOUBLE, multiplier)
+
+// Note: Array functions use traditional wrappers (sum_numbers_wrapper, join_strings_wrapper)
+// because array parameter handling is more complex and requires count management
 
 // =============================================================================
 // Resource Examples - Demonstrate MCP Resource System
@@ -262,10 +370,32 @@ int main(int argc, char *argv[]) {
         printf("Registered add(double, double) -> double\n");
     }
 
-    // Example 2: Array processing function - double sum_array(double*, size_t)
-    // Note: This requires special handling since it's not a simple parameter combination
-    // For now, we'll skip this and implement it later with array support
-    printf("⚠️  Array functions need special implementation - skipping sum_array for now\n");
+    // Example 2: Array sum function - double sum_numbers(double[])
+    mcp_param_desc_t sum_params[] = {
+        MCP_PARAM_ARRAY_DOUBLE_DEF("numbers", "Array of numbers to sum", "A number to add", 1)
+    };
+
+    if (embed_mcp_add_tool(server, "sum_numbers", "Sum an array of numbers",
+                           sum_params, NULL, NULL, 1, MCP_RETURN_DOUBLE,
+                           sum_numbers_wrapper, NULL) != 0) {
+        printf("Failed to register 'sum_numbers' function: %s\n", embed_mcp_get_error());
+    } else {
+        printf("Registered sum_numbers(double[]) -> double\n");
+    }
+
+    // Example 3: String array join function - char* join_strings(string[], string)
+    mcp_param_desc_t join_params[] = {
+        MCP_PARAM_ARRAY_STRING_DEF("strings", "Array of strings to join", "A string to join", 1),
+        MCP_PARAM_STRING_DEF("separator", "Separator to use between strings", 1)
+    };
+
+    if (embed_mcp_add_tool(server, "join_strings", "Join an array of strings with a separator",
+                           join_params, NULL, NULL, 2, MCP_RETURN_STRING,
+                           join_strings_wrapper, NULL) != 0) {
+        printf("Failed to register 'join_strings' function: %s\n", embed_mcp_get_error());
+    } else {
+        printf("Registered join_strings(string[], string) -> string\n");
+    }
 
     // Example 3: String function - char* get_weather(const char*)
     const char* weather_param_names[] = {"city"};

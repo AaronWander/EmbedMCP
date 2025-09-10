@@ -1111,7 +1111,7 @@ size_t embed_mcp_get_resource_template_count(embed_mcp_server_t *server) {
 int embed_mcp_add_tool(embed_mcp_server_t *server,
                        const char *name,
                        const char *description,
-                       const char *param_names[],
+                       const void *param_names,
                        const char *param_descriptions[],
                        mcp_param_type_t param_types[],
                        size_t param_count,
@@ -1128,10 +1128,23 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
         return -1;
     }
 
-    if (param_count > 0 && (!param_names || !param_descriptions || !param_types)) {
-        set_error("Invalid parameters: param_names, param_descriptions, and param_types are required when param_count > 0");
+    // Detect advanced mode: if param_descriptions is NULL and param_types is NULL,
+    // then param_names is actually a mcp_param_desc_t*
+    bool advanced_mode = (param_count > 0 && param_descriptions == NULL && param_types == NULL);
+
+    if (param_count > 0 && !param_names) {
+        set_error("Invalid parameters: param_names is required when param_count > 0");
         return -1;
     }
+
+    if (param_count > 0 && !advanced_mode && (!param_descriptions || !param_types)) {
+        set_error("Invalid parameters: param_descriptions and param_types are required in traditional mode");
+        return -1;
+    }
+
+    // Cast param_names to appropriate type based on mode
+    const char **traditional_names = advanced_mode ? NULL : (const char**)param_names;
+    const mcp_param_desc_t *advanced_params = advanced_mode ? (const mcp_param_desc_t*)param_names : NULL;
 
     // Create universal function data
     universal_func_data_t *func_data = malloc(sizeof(universal_func_data_t));
@@ -1145,63 +1158,105 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
     func_data->return_type = return_type;
     func_data->user_data = user_data;
 
-    // Copy parameter names
+
+
+    // Copy parameter names and types
     if (param_count > 0) {
         func_data->param_names = malloc(param_count * sizeof(char*));
-        if (!func_data->param_names) {
-            free(func_data);
-            set_error("Memory allocation failed");
-            return -1;
-        }
-
-        for (size_t i = 0; i < param_count; i++) {
-            func_data->param_names[i] = strdup(param_names[i]);
-        }
-
-        // Copy parameter types
         func_data->param_types = malloc(param_count * sizeof(mcp_param_type_t));
-        if (!func_data->param_types) {
-            for (size_t i = 0; i < param_count; i++) {
-                free((void*)func_data->param_names[i]);
-            }
-            free(func_data->param_names);
+
+        if (!func_data->param_names || !func_data->param_types) {
+            if (func_data->param_names) free(func_data->param_names);
+            if (func_data->param_types) free(func_data->param_types);
             free(func_data);
             set_error("Memory allocation failed");
             return -1;
         }
 
-        memcpy(func_data->param_types, param_types, param_count * sizeof(mcp_param_type_t));
+        if (advanced_mode) {
+            // Advanced mode: extract from mcp_param_desc_t
+            for (size_t i = 0; i < param_count; i++) {
+                func_data->param_names[i] = strdup(advanced_params[i].name);
+                if (!func_data->param_names[i]) {
+                    // Clean up
+                    for (size_t j = 0; j < i; j++) {
+                        free((void*)func_data->param_names[j]);
+                    }
+                    free(func_data->param_names);
+                    free(func_data->param_types);
+                    free(func_data);
+                    set_error("Memory allocation failed");
+                    return -1;
+                }
+
+                // Extract basic type for compatibility
+                if (advanced_params[i].category == MCP_PARAM_SINGLE) {
+                    func_data->param_types[i] = advanced_params[i].single_type;
+                } else if (advanced_params[i].category == MCP_PARAM_ARRAY) {
+                    func_data->param_types[i] = advanced_params[i].array_desc.element_type;
+                } else {
+                    func_data->param_types[i] = MCP_PARAM_STRING; // Default for objects
+                }
+            }
+        } else {
+            // Traditional mode: use provided arrays
+            for (size_t i = 0; i < param_count; i++) {
+                func_data->param_names[i] = strdup(traditional_names[i]);
+                if (!func_data->param_names[i]) {
+                    // Clean up
+                    for (size_t j = 0; j < i; j++) {
+                        free((void*)func_data->param_names[j]);
+                    }
+                    free(func_data->param_names);
+                    free(func_data->param_types);
+                    free(func_data);
+                    set_error("Memory allocation failed");
+                    return -1;
+                }
+            }
+            memcpy(func_data->param_types, param_types, param_count * sizeof(mcp_param_type_t));
+        }
     } else {
         func_data->param_names = NULL;
         func_data->param_types = NULL;
     }
 
-    // Create parameter descriptions
+    // Create parameter descriptions for schema generation
     mcp_param_desc_t *params = NULL;
-    if (param_count > 0) {
-        params = malloc(param_count * sizeof(mcp_param_desc_t));
-        if (!params) {
-            // Clean up
-            if (func_data->param_names) {
-                for (size_t i = 0; i < param_count; i++) {
-                    free((void*)func_data->param_names[i]);
-                }
-                free(func_data->param_names);
-            }
-            if (func_data->param_types) {
-                free(func_data->param_types);
-            }
-            free(func_data);
-            set_error("Memory allocation failed");
-            return -1;
-        }
+    bool need_free_params = false;
 
-        for (size_t i = 0; i < param_count; i++) {
-            params[i].name = func_data->param_names[i];
-            params[i].description = param_descriptions[i];
-            params[i].category = MCP_PARAM_SINGLE;
-            params[i].required = 1;
-            params[i].single_type = param_types[i];
+    if (param_count > 0) {
+        if (advanced_mode) {
+            // Use the provided advanced parameters directly (cast away const for internal use)
+            params = (mcp_param_desc_t*)advanced_params;
+        } else {
+            // Create parameter descriptions from traditional arrays
+            params = malloc(param_count * sizeof(mcp_param_desc_t));
+            need_free_params = true;
+
+            if (!params) {
+                // Clean up
+                if (func_data->param_names) {
+                    for (size_t i = 0; i < param_count; i++) {
+                        free((void*)func_data->param_names[i]);
+                    }
+                    free(func_data->param_names);
+                }
+                if (func_data->param_types) {
+                    free(func_data->param_types);
+                }
+                free(func_data);
+                set_error("Memory allocation failed");
+                return -1;
+            }
+
+            for (size_t i = 0; i < param_count; i++) {
+                params[i].name = func_data->param_names[i];
+                params[i].description = param_descriptions[i];
+                params[i].category = MCP_PARAM_SINGLE;
+                params[i].required = 1;
+                params[i].single_type = param_types[i];
+            }
         }
     }
 
@@ -1209,7 +1264,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
     cJSON *input_schema = create_schema_from_params(params, param_count);
     if (!input_schema && param_count > 0) {
         // Clean up
-        if (params) free(params);
+        if (need_free_params && params) free(params);
         if (func_data->param_names) {
             for (size_t i = 0; i < param_count; i++) {
                 free((void*)func_data->param_names[i]);
@@ -1227,7 +1282,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
     // Create tool
     mcp_tool_t *tool = mcp_tool_create(name, name, description, input_schema,
                                       universal_function_wrapper, func_data);
-    if (params) free(params);
+    if (need_free_params && params) free(params);
 
     if (!tool) {
         // Clean up
@@ -1258,3 +1313,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
 
     return 0;
 }
+
+
+
+
