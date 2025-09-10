@@ -117,7 +117,7 @@ embed_mcp_add_tool(server, "add", "两个数字相加",
 
 ### 数组函数（高级）
 
-对于包含数组参数的函数，需要传统包装器：
+对于包含数组参数的函数，需要手动包装器：
 
 ```c
 // 业务函数
@@ -129,7 +129,7 @@ double sum_numbers(double* numbers, size_t count) {
     return sum;
 }
 
-// 传统包装器（处理内存管理）
+// 手动包装器（处理内存管理）
 void* sum_wrapper(mcp_param_accessor_t* params, void* user_data) {
     size_t count;
     double* numbers = params->get_double_array(params, "numbers", &count);

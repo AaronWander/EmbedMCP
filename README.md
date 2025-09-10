@@ -125,7 +125,7 @@ double sum_numbers(double* numbers, size_t count) {
     return sum;
 }
 
-// Traditional wrapper (handles memory management)
+// Manual wrapper (handles memory management)
 void* sum_wrapper(mcp_param_accessor_t* params, void* user_data) {
     size_t count;
     double* numbers = params->get_double_array(params, "numbers", &count);
