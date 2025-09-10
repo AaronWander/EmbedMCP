@@ -20,7 +20,7 @@ EmbedMCP bridges the gap between your existing C codebase and modern AI systems.
 - **🔧 Cross-Platform**: Runs on 15+ platforms via Universal HAL
 - **📦 Zero Dependencies**: Self-contained library with no external requirements
 - **🎯 Two Registration Methods**: Magic macros for simple functions, full control for complex ones
-- **🌐 Multiple Transports**: HTTP and STDIO support for different use cases
+- **🌐 Multiple Transports**: Streamable HTTP and STDIO support for different use cases
 - **🧠 Smart Memory Management**: Automatic cleanup with clear ownership rules
 - **📊 Array Support**: Handle both simple parameters and complex data structures
 
@@ -70,7 +70,7 @@ int main() {
     embed_mcp_add_tool(server, "add", "Add two numbers",
                        names, descs, types, 2, MCP_RETURN_DOUBLE, add_wrapper, NULL);
 
-    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
+    embed_mcp_run(server, EMBED_MCP_TRANSPORT_STREAMABLE_HTTP);
     embed_mcp_destroy(server);
     return 0;
 }
@@ -82,16 +82,16 @@ int main() {
 # Build
 make
 
-# Run HTTP server
-./bin/mcp_server --transport http --port 8080
+# Run Streamable HTTP server
+./bin/mcp_server --transport streamable-http --port 8080
 
-# Or run STDIO server (for Claude Desktop)
+# Or run STDIO server
 ./bin/mcp_server --transport stdio
 ```
 
 ## Function Registration
 
-EmbedMCP supports two registration approaches depending on your function's complexity:
+EmbedMCP supports two registration approaches:
 
 ### Simple Functions (Recommended)
 
@@ -168,13 +168,14 @@ char* get_weather(const char* city) {
 
 ## Server Modes
 
-### HTTP Transport
-For web integration and development:
+### Streamable HTTP Transport (Example)
+
 ```bash
-./my_server --transport http --port 8080
+./my_server --transport streamable-http --port 8080
 ```
 - Multiple concurrent clients
-- REST API integration
+- Session management with `Mcp-Session-Id` headers
+- Protocol version negotiation via `Mcp-Protocol-Version` headers
 - Web application backends
 - Development and testing
 
@@ -262,29 +263,21 @@ make && ./bin/mcp_server --transport stdio
 
 ### Testing with MCP Inspector
 
-1. Start the server: `./bin/mcp_server --transport http --port 8080`
+1. Start the server: `./bin/mcp_server --transport streamable-http --port 8080`
 2. Open [MCP Inspector](https://inspector.mcp.dev)
 3. Connect to: `http://localhost:8080/mcp`
 4. Test the available tools
 
 ## Platform Support
 
-EmbedMCP is designed for maximum portability across embedded and desktop systems:
+EmbedMCP is designed for maximum portability across embedded systems:
 
 ### Embedded Systems
 - **RTOS**: FreeRTOS, Zephyr, ThreadX, embOS
 - **MCUs**: STM32, ESP32, Nordic nRF series
 - **SBCs**: Raspberry Pi, BeagleBone, Orange Pi
 
-### Desktop & Server
-- **Operating Systems**: Linux, macOS, Windows
-- **Containers**: Docker, Podman
-- **Cloud**: AWS, Azure, GCP
 
-### Real-time Systems
-- **Industrial**: QNX, VxWorks
-- **Automotive**: AUTOSAR Classic/Adaptive
-- **Aerospace**: VxWorks 653, PikeOS
 
 ### Requirements
 - **Minimum**: C99 compiler, 64KB RAM, 100KB flash
@@ -303,10 +296,7 @@ EmbedMCP is designed for maximum portability across embedded and desktop systems
 - **Smart devices**: Voice assistants, smart cameras, IoT hubs
 - **Robotics**: AI-controlled robotic systems
 
-### Legacy Integration
-- **Modernize C codebases**: Add AI capabilities to existing systems
-- **Scientific computing**: Expose numerical libraries to AI
-- **Financial systems**: High-frequency trading algorithms
+
 
 ## Troubleshooting
 
@@ -331,9 +321,9 @@ valgrind ./bin/mcp_server --transport stdio
 ```
 
 **Connection issues:**
-- Ensure correct transport mode (HTTP vs STDIO)
-- Check firewall settings for HTTP mode
-- Verify MCP client configuration
+- Ensure correct transport mode (Streamable HTTP vs STDIO)
+- Check firewall settings for Streamable HTTP mode
+- Verify MCP client configuration and protocol version headers
 
 ## Contributing
 
@@ -366,7 +356,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Documentation**: [Wiki](https://github.com/AaronWander/EmbedMCP/wiki)
 - **Issues**: [GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/AaronWander/EmbedMCP/discussions)
-- **Email**: [aaron@example.com](mailto:aaron@example.com)

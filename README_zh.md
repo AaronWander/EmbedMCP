@@ -20,7 +20,7 @@ EmbedMCP 在您现有的C代码库和现代AI系统之间架起了桥梁。无�
 - **🔧 跨平台**：通过通用HAL在15+个平台上运行
 - **📦 零依赖**：自包含库，无外部依赖
 - **🎯 两种注册方法**：简单函数用魔法宏，复杂函数完全控制
-- **🌐 多种传输**：HTTP和STDIO支持不同用例
+- **🌐 多种传输**：Streamable HTTP和STDIO支持不同用例
 - **🧠 智能内存管理**：自动清理，明确所有权规则
 - **📊 数组支持**：处理简单参数和复杂数据结构
 
@@ -70,7 +70,7 @@ int main() {
     embed_mcp_add_tool(server, "add", "两个数字相加",
                        names, descs, types, 2, MCP_RETURN_DOUBLE, add_wrapper, NULL);
 
-    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
+    embed_mcp_run(server, EMBED_MCP_TRANSPORT_STREAMABLE_HTTP);
     embed_mcp_destroy(server);
     return 0;
 }
@@ -82,20 +82,20 @@ int main() {
 # 构建
 make
 
-# 运行HTTP服务器
-./bin/mcp_server --transport http --port 8080
+# 运行Streamable HTTP服务器
+./bin/mcp_server --transport streamable-http --port 8080
 
-# 或运行STDIO服务器（用于Claude Desktop）
+# 或运行STDIO服务器
 ./bin/mcp_server --transport stdio
 ```
 
 ## 函数注册
 
-EmbedMCP根据您函数的复杂性支持两种注册方式：
+EmbedMCP支持两种注册方式：
 
 ### 简单函数（推荐）
 
-对于基本参数类型（int、double、string、bool），使用魔法宏：
+对于基本参数类型（int、double、string、bool），使用宏一键构成：
 
 ```c
 // 业务函数
@@ -117,7 +117,7 @@ embed_mcp_add_tool(server, "add", "两个数字相加",
 
 ### 数组函数（高级）
 
-对于包含数组参数的函数，需要手动包装器：
+对于包含数组参数的函数，需要手动构建：
 
 ```c
 // 业务函数
@@ -172,13 +172,14 @@ char* get_weather(const char* city) {
 
 ## 服务器模式
 
-### HTTP传输
-用于Web集成和开发：
+### Streamable HTTP传输（样例）
+
 ```bash
-./my_server --transport http --port 8080
+./my_server --transport streamable-http --port 8080
 ```
 - 多个并发客户端
-- REST API集成
+- 通过`Mcp-Session-Id`头部进行会话管理
+- 通过`Mcp-Protocol-Version`头部进行协议版本协商
 - Web应用后端
 - 开发和测试
 
@@ -228,29 +229,20 @@ make && ./bin/mcp_server --transport stdio
 
 ### 使用MCP Inspector测试
 
-1. 启动服务器：`./bin/mcp_server --transport http --port 8080`
+1. 启动服务器：`./bin/mcp_server --transport streamable-http --port 8080`
 2. 打开 [MCP Inspector](https://inspector.mcp.dev)
 3. 连接到：`http://localhost:8080/mcp`
 4. 测试可用工具
 
 ## 平台支持
 
-EmbedMCP设计为在嵌入式和桌面系统上最大程度的可移植性：
+EmbedMCP设计为在嵌入式设备上最大程度的可移植性：
 
 ### 嵌入式系统
 - **RTOS**：FreeRTOS、Zephyr、ThreadX、embOS
 - **MCU**：STM32、ESP32、Nordic nRF系列
 - **SBC**：Raspberry Pi、BeagleBone、Orange Pi
 
-### 桌面和服务器
-- **操作系统**：Linux、macOS、Windows
-- **容器**：Docker、Podman
-- **云**：AWS、Azure、GCP
-
-### 实时系统
-- **工业**：QNX、VxWorks
-- **汽车**：AUTOSAR Classic/Adaptive
-- **航空航天**：VxWorks 653、PikeOS
 
 ### 要求
 - **最低**：C99编译器，64KB RAM，100KB flash
@@ -269,10 +261,6 @@ EmbedMCP设计为在嵌入式和桌面系统上最大程度的可移植性：
 - **智能设备**：语音助手、智能摄像头、物联网中枢
 - **机器人技术**：AI控制的机器人系统
 
-### 遗留系统集成
-- **现代化C代码库**：为现有系统添加AI功能
-- **科学计算**：将数值库暴露给AI
-- **金融系统**：高频交易算法
 
 ## 故障排除
 
@@ -297,9 +285,9 @@ valgrind ./bin/mcp_server --transport stdio
 ```
 
 **连接问题：**
-- 确保正确的传输模式（HTTP vs STDIO）
-- 检查HTTP模式的防火墙设置
-- 验证MCP客户端配置
+- 确保正确的传输模式（Streamable HTTP vs STDIO）
+- 检查Streamable HTTP模式的防火墙设置
+- 验证MCP客户端配置和协议版本头部
 
 ## 贡献
 
@@ -332,7 +320,7 @@ make test
 
 ## 支持
 
-- **文档**：[Wiki](https://github.com/AaronWander/EmbedMCP/wiki)
+
 - **问题**：[GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues)
 - **讨论**：[GitHub Discussions](https://github.com/AaronWander/EmbedMCP/discussions)
-- **邮箱**：[aaron@example.com](mailto:aaron@example.com)
+
