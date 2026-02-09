@@ -1,5 +1,6 @@
 #include "transport/http_transport.h"
 #include "hal/platform_hal.h"
+#include "hal/hal_common.h"
 #include "utils/logging.h"
 #include "protocol/message.h"
 #include "protocol/jsonrpc.h"
@@ -107,8 +108,17 @@ static void http_request_handler(const mcp_hal_http_request_t* request,
 
         // 检查是否为MCP请求
         if (request->body && strstr(request->body, "\"method\"")) {
+            const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+            if (!hal) {
+                response->status_code = 500;
+                response->headers = "Content-Type: application/json\r\n";
+                response->body = "{\"error\":\"Internal server error\"}";
+                response->body_len = strlen(response->body);
+                return;
+            }
+
             // 创建连接对象
-            mcp_connection_t* connection = calloc(1, sizeof(mcp_connection_t));
+            mcp_connection_t* connection = hal->memory.alloc(sizeof(mcp_connection_t));
             if (!connection) {
                 mcp_log_error("HTTP Transport: Failed to allocate connection");
                 response->status_code = 500;
@@ -117,6 +127,7 @@ static void http_request_handler(const mcp_hal_http_request_t* request,
                 response->body_len = strlen(response->body);
                 return;
             }
+            memset(connection, 0, sizeof(mcp_connection_t));
 
             // 初始化连接对象
             connection->transport = data->transport;
@@ -128,7 +139,7 @@ static void http_request_handler(const mcp_hal_http_request_t* request,
             // Capture streamable-http headers if present
             char session_id[128] = {0};
             if (http_extract_header_value(request, "MCP-Session-Id", session_id, sizeof(session_id))) {
-                connection->session_id = strdup(session_id);
+                mcp_connection_set_session_id(connection, session_id);
             }
 
             // 调用消息接收回调
@@ -167,37 +178,42 @@ int mcp_http_transport_init_impl(mcp_transport_t *transport, const mcp_transport
         return -1;
     }
 
-    mcp_http_transport_data_t *data = calloc(1, sizeof(mcp_http_transport_data_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return -1;
+
+    mcp_http_transport_data_t *data = hal->memory.alloc(sizeof(mcp_http_transport_data_t));
     if (!data) {
         mcp_log_error("HTTP Transport: Failed to allocate transport data");
         return -1;
     }
+    memset(data, 0, sizeof(mcp_http_transport_data_t));
 
     // 获取HAL接口
     data->hal = mcp_platform_get_hal();
     if (!data->hal) {
         mcp_log_error("HTTP Transport: No platform HAL available");
-        free(data);
+        hal->memory.free(data);
         return -1;
     }
 
     // Store configuration
-    transport->config = calloc(1, sizeof(mcp_transport_config_t));
+    transport->config = hal->memory.alloc(sizeof(mcp_transport_config_t));
     if (transport->config) {
+        memset(transport->config, 0, sizeof(mcp_transport_config_t));
         *transport->config = *config;
         // Duplicate string fields
         if (config->config.http.bind_address) {
-            transport->config->config.http.bind_address = strdup(config->config.http.bind_address);
+            transport->config->config.http.bind_address = hal_strdup(hal, config->config.http.bind_address);
         }
         if (config->config.http.endpoint_path) {
-            transport->config->config.http.endpoint_path = strdup(config->config.http.endpoint_path);
+            transport->config->config.http.endpoint_path = hal_strdup(hal, config->config.http.endpoint_path);
         }
     }
 
     // Initialize HTTP data
     data->port = config->config.http.port;
-    data->bind_address = config->config.http.bind_address ? strdup(config->config.http.bind_address) : strdup("0.0.0.0");
-    data->endpoint_path = config->config.http.endpoint_path ? strdup(config->config.http.endpoint_path) : strdup("/mcp");
+    data->bind_address = config->config.http.bind_address ? hal_strdup(hal, config->config.http.bind_address) : hal_strdup(hal, "0.0.0.0");
+    data->endpoint_path = config->config.http.endpoint_path ? hal_strdup(hal, config->config.http.endpoint_path) : hal_strdup(hal, "/mcp");
     data->enable_cors = config->config.http.enable_cors;
     data->max_request_size = config->config.http.max_request_size;
     data->server_running = false;
@@ -348,15 +364,18 @@ void mcp_http_transport_cleanup_impl(mcp_transport_t *transport) {
         return;
     }
 
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return;
+
     mcp_http_transport_data_t *data = (mcp_http_transport_data_t*)transport->private_data;
 
     // 停止服务器
     mcp_http_transport_stop_impl(transport);
 
     // 释放资源
-    free(data->bind_address);
-    free(data->endpoint_path);
-    free(data);
+    hal_free(hal, data->bind_address);
+    hal_free(hal, data->endpoint_path);
+    hal->memory.free(data);
 
     transport->private_data = NULL;
 

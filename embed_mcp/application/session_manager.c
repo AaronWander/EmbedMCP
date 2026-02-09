@@ -1,5 +1,6 @@
 #include "session_manager.h"
 #include "hal/platform_hal.h"
+#include "hal/hal_common.h"
 #include "utils/logging.h"
 #include <stdlib.h>
 #include <string.h>
@@ -65,7 +66,10 @@ bool mcp_session_validate_id(const char *session_id) {
 
 // 创建默认配置
 mcp_session_manager_config_t *mcp_session_manager_config_create_default(void) {
-    mcp_session_manager_config_t *config = malloc(sizeof(mcp_session_manager_config_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_session_manager_config_t *config = hal->memory.alloc(sizeof(mcp_session_manager_config_t));
     if (!config) return NULL;
     
     config->max_sessions = 10;
@@ -78,7 +82,10 @@ mcp_session_manager_config_t *mcp_session_manager_config_create_default(void) {
 }
 
 void mcp_session_manager_config_destroy(mcp_session_manager_config_t *config) {
-    free(config);
+    if (!config) return;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (hal) hal->memory.free(config);
 }
 
 // 创建会话管理器
@@ -108,15 +115,15 @@ mcp_session_manager_t *mcp_session_manager_create(const mcp_session_manager_conf
     
     // 初始化线程安全
     if (pthread_rwlock_init(&manager->sessions_lock, NULL) != 0) {
-        free(manager->sessions);
-        free(manager);
+        hal->memory.free(manager->sessions);
+        hal->memory.free(manager);
         return NULL;
     }
     
     if (pthread_mutex_init(&manager->manager_mutex, NULL) != 0) {
         pthread_rwlock_destroy(&manager->sessions_lock);
-        free(manager->sessions);
-        free(manager);
+        hal->memory.free(manager->sessions);
+        hal->memory.free(manager);
         return NULL;
     }
     
@@ -134,6 +141,8 @@ mcp_session_manager_t *mcp_session_manager_create(const mcp_session_manager_conf
 // 销毁会话管理器
 void mcp_session_manager_destroy(mcp_session_manager_t *manager) {
     if (!manager) return;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
     
     // 停止清理线程
     if (manager->cleanup_running) {
@@ -155,8 +164,10 @@ void mcp_session_manager_destroy(mcp_session_manager_t *manager) {
     pthread_mutex_destroy(&manager->manager_mutex);
     
     // 释放内存
-    free(manager->sessions);
-    free(manager);
+    if (hal) {
+        hal->memory.free(manager->sessions);
+        hal->memory.free(manager);
+    }
     
     mcp_log_info("Session manager destroyed");
 }
@@ -246,6 +257,9 @@ int mcp_session_manager_stop(mcp_session_manager_t *manager) {
 mcp_session_t *mcp_session_manager_create_session(mcp_session_manager_t *manager,
                                                  const char *session_id) {
     if (!manager) return NULL;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
     
     // 生成会话ID（如果未提供）
     char *id = NULL;
@@ -254,7 +268,7 @@ mcp_session_t *mcp_session_manager_create_session(mcp_session_manager_t *manager
             mcp_log_error("Invalid session ID format: %s", session_id);
             return NULL;
         }
-        id = strdup(session_id);
+        id = hal_strdup(hal, session_id);
     } else {
         id = mcp_session_generate_id();
     }
@@ -267,7 +281,7 @@ mcp_session_t *mcp_session_manager_create_session(mcp_session_manager_t *manager
         if (manager->sessions[i] && 
             strcmp(manager->sessions[i]->session_id, id) == 0) {
             pthread_rwlock_unlock(&manager->sessions_lock);
-            free(id);
+            hal->memory.free(id);
             mcp_log_warn("Session already exists: %s", id);
             return NULL;
         }
@@ -275,9 +289,9 @@ mcp_session_t *mcp_session_manager_create_session(mcp_session_manager_t *manager
     pthread_rwlock_unlock(&manager->sessions_lock);
     
     // 创建新会话
-    mcp_session_t *session = malloc(sizeof(mcp_session_t));
+    mcp_session_t *session = hal->memory.alloc(sizeof(mcp_session_t));
     if (!session) {
-        free(id);
+        hal->memory.free(id);
         return NULL;
     }
     
@@ -292,8 +306,8 @@ mcp_session_t *mcp_session_manager_create_session(mcp_session_manager_t *manager
     
     // 初始化互斥锁
     if (pthread_mutex_init(&session->mutex, NULL) != 0) {
-        free(session->session_id);
-        free(session);
+        hal->memory.free(session->session_id);
+        hal->memory.free(session);
         return NULL;
     }
     
@@ -316,8 +330,8 @@ mcp_session_t *mcp_session_manager_create_session(mcp_session_manager_t *manager
     
     if (!added) {
         pthread_mutex_destroy(&session->mutex);
-        free(session->session_id);
-        free(session);
+        hal->memory.free(session->session_id);
+        hal->memory.free(session);
         mcp_log_error("Session manager is full, cannot create new session");
         return NULL;
     }
@@ -394,6 +408,8 @@ void mcp_session_unref(mcp_session_t *session) {
     pthread_mutex_unlock(&session->mutex);
 
     if (should_destroy) {
+        const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+
         // 清理会话资源
         if (session->protocol_state) {
             // Protocol state cleanup is handled by the protocol module
@@ -401,11 +417,13 @@ void mcp_session_unref(mcp_session_t *session) {
         }
 
         pthread_mutex_destroy(&session->mutex);
-        free(session->session_id);
-        free(session->client_name);
-        free(session->client_version);
-        free(session->protocol_version);
-        free(session);
+        if (hal) {
+            hal_free(hal, session->session_id);
+            hal_free(hal, session->client_name);
+            hal_free(hal, session->client_version);
+            hal_free(hal, session->protocol_version);
+            hal->memory.free(session);
+        }
     }
 }
 
@@ -533,6 +551,9 @@ int mcp_session_initialize(mcp_session_t *session,
     (void)client_capabilities; // Client capabilities processing is handled by protocol layer
     if (!session) return -1;
 
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return -1;
+
     pthread_mutex_lock(&session->mutex);
 
     if (session->state != MCP_SESSION_STATE_CREATED) {
@@ -543,22 +564,22 @@ int mcp_session_initialize(mcp_session_t *session,
     session->state = MCP_SESSION_STATE_INITIALIZING;
 
     if (protocol_version) {
-        free(session->protocol_version);
-        session->protocol_version = strdup(protocol_version);
+        hal_free(hal, session->protocol_version);
+        session->protocol_version = hal_strdup(hal, protocol_version);
     }
 
     // 处理客户端信息
     if (client_info) {
         const cJSON *name = cJSON_GetObjectItem(client_info, "name");
         if (cJSON_IsString(name)) {
-            free(session->client_name);
-            session->client_name = strdup(name->valuestring);
+            hal_free(hal, session->client_name);
+            session->client_name = hal_strdup(hal, name->valuestring);
         }
 
         const cJSON *version = cJSON_GetObjectItem(client_info, "version");
         if (cJSON_IsString(version)) {
-            free(session->client_version);
-            session->client_version = strdup(version->valuestring);
+            hal_free(hal, session->client_version);
+            session->client_version = hal_strdup(hal, version->valuestring);
         }
     }
 

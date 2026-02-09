@@ -1,5 +1,6 @@
 #include "protocol/mcp_protocol.h"
 #include "hal/platform_hal.h"
+#include "hal/hal_common.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -24,24 +25,25 @@ mcp_protocol_t *mcp_protocol_create(const mcp_protocol_config_t *config) {
         
         // Duplicate string fields
         if (config->server_name) {
-            protocol->config->server_name = strdup(config->server_name);
+            protocol->config->server_name = hal_strdup(hal, config->server_name);
         }
         if (config->server_version) {
-            protocol->config->server_version = strdup(config->server_version);
+            protocol->config->server_version = hal_strdup(hal, config->server_version);
         }
         if (config->instructions) {
-            protocol->config->instructions = strdup(config->instructions);
+            protocol->config->instructions = hal_strdup(hal, config->instructions);
         }
         if (config->capabilities) {
-            protocol->config->capabilities = calloc(1, sizeof(mcp_capabilities_t));
+            protocol->config->capabilities = hal->memory.alloc(sizeof(mcp_capabilities_t));
             if (protocol->config->capabilities) {
+                memset(protocol->config->capabilities, 0, sizeof(mcp_capabilities_t));
                 *protocol->config->capabilities = *config->capabilities;
             }
         }
     } else {
         protocol->config = mcp_protocol_config_create_default();
         if (!protocol->config) {
-            free(protocol);
+            hal->memory.free(protocol);
             return NULL;
         }
     }
@@ -50,7 +52,7 @@ mcp_protocol_t *mcp_protocol_create(const mcp_protocol_config_t *config) {
     protocol->state_machine = mcp_protocol_state_create();
     if (!protocol->state_machine) {
         mcp_protocol_config_destroy(protocol->config);
-        free(protocol);
+        hal->memory.free(protocol);
         return NULL;
     }
     
@@ -65,7 +67,7 @@ mcp_protocol_t *mcp_protocol_create(const mcp_protocol_config_t *config) {
     if (!protocol->parser) {
         mcp_protocol_state_destroy(protocol->state_machine);
         mcp_protocol_config_destroy(protocol->config);
-        free(protocol);
+        hal->memory.free(protocol);
         return NULL;
     }
     
@@ -105,8 +107,8 @@ mcp_protocol_config_t *mcp_protocol_config_create_default(void) {
     config->max_pending_requests = 100;
     config->request_timeout = 30; // 30 seconds
     
-    config->server_name = strdup("EmbedMCP");
-    config->server_version = strdup("1.0.0");
+    config->server_name = hal_strdup(hal, "EmbedMCP");
+    config->server_version = hal_strdup(hal, "1.0.0");
     config->instructions = NULL;  // Will be set by user configuration
     config->capabilities = mcp_capabilities_create_default();
     
@@ -132,11 +134,14 @@ int mcp_protocol_config_set_server_info(mcp_protocol_config_t *config,
                                        const char *name, const char *version) {
     if (!config) return -1;
 
-    free(config->server_name);
-    free(config->server_version);
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return -1;
 
-    config->server_name = name ? strdup(name) : NULL;
-    config->server_version = version ? strdup(version) : NULL;
+    hal_free(hal, config->server_name);
+    hal_free(hal, config->server_version);
+
+    config->server_name = name ? hal_strdup(hal, name) : NULL;
+    config->server_version = version ? hal_strdup(hal, version) : NULL;
 
     return 0;
 }
@@ -145,8 +150,11 @@ int mcp_protocol_config_set_instructions(mcp_protocol_config_t *config,
                                         const char *instructions) {
     if (!config) return -1;
 
-    free(config->instructions);
-    config->instructions = instructions ? strdup(instructions) : NULL;
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return -1;
+
+    hal_free(hal, config->instructions);
+    config->instructions = instructions ? hal_strdup(hal, instructions) : NULL;
 
     return 0;
 }

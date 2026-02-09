@@ -259,13 +259,13 @@ static cJSON *protocol_request_handler(const mcp_request_t *request, void *user_
     embed_mcp_server_t *server = (embed_mcp_server_t*)user_data;
 
     if (!server || !request || !request->method) {
-        printf("[DEBUG] Invalid request parameters\n");
-        fflush(stdout);
+        mcp_log_debug("Invalid request parameters");
         return NULL;
     }
 
-    printf("[DEBUG] Handling request: %s\n", request->method);
-    fflush(stdout);
+    if (server->debug) {
+        mcp_log_debug("Handling request: %s", request->method);
+    }
     
     // Handle tools/list
     if (strcmp(request->method, "tools/list") == 0) {
@@ -291,18 +291,21 @@ static cJSON *protocol_request_handler(const mcp_request_t *request, void *user_
 
     // Handle resources/list
     if (strcmp(request->method, "resources/list") == 0) {
-        printf("[DEBUG] Handling resources/list request\n");
-        fflush(stdout);
+        if (server->debug) {
+            mcp_log_debug("Handling resources/list request");
+        }
 
         cJSON *resources = mcp_resource_registry_list_resources(server->resource_registry);
         if (!resources) {
-            printf("[DEBUG] mcp_resource_registry_list_resources returned NULL\n");
-            fflush(stdout);
+            if (server->debug) {
+                mcp_log_debug("mcp_resource_registry_list_resources returned NULL");
+            }
             return NULL;
         }
 
-        printf("[DEBUG] Creating result object for resources/list\n");
-        fflush(stdout);
+        if (server->debug) {
+            mcp_log_debug("Creating result object for resources/list");
+        }
 
         cJSON *result = cJSON_CreateObject();
         cJSON_AddItemToObject(result, "resources", resources);
@@ -358,18 +361,21 @@ static cJSON *protocol_request_handler(const mcp_request_t *request, void *user_
 
     // Handle resources/templates/list
     if (strcmp(request->method, "resources/templates/list") == 0) {
-        printf("[DEBUG] Handling resources/templates/list request\n");
-        fflush(stdout);
+        if (server->debug) {
+            mcp_log_debug("Handling resources/templates/list request");
+        }
 
         cJSON *templates = mcp_resource_registry_list_templates(server->resource_registry);
         if (!templates) {
-            printf("[DEBUG] mcp_resource_registry_list_templates returned NULL\n");
-            fflush(stdout);
+            if (server->debug) {
+                mcp_log_debug("mcp_resource_registry_list_templates returned NULL");
+            }
             return NULL;
         }
 
-        printf("[DEBUG] Creating result object for resources/templates/list\n");
-        fflush(stdout);
+        if (server->debug) {
+            mcp_log_debug("Creating result object for resources/templates/list");
+        }
 
         cJSON *result = cJSON_CreateObject();
         cJSON_AddItemToObject(result, "resourceTemplates", templates);
@@ -1336,5 +1342,4 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
 
     return 0;
 }
-
 

@@ -1,4 +1,6 @@
 #include "protocol/jsonrpc.h"
+#include "hal/platform_hal.h"
+#include "hal/hal_common.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -12,8 +14,12 @@ struct jsonrpc_parser {
 
 // Parser creation and destruction
 jsonrpc_parser_t *jsonrpc_parser_create(const jsonrpc_parser_config_t *config) {
-    jsonrpc_parser_t *parser = calloc(1, sizeof(jsonrpc_parser_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    jsonrpc_parser_t *parser = hal->memory.alloc(sizeof(jsonrpc_parser_t));
     if (!parser) return NULL;
+    memset(parser, 0, sizeof(jsonrpc_parser_t));
     
     if (config) {
         parser->config = *config;
@@ -29,7 +35,8 @@ jsonrpc_parser_t *jsonrpc_parser_create(const jsonrpc_parser_config_t *config) {
 
 void jsonrpc_parser_destroy(jsonrpc_parser_t *parser) {
     if (!parser) return;
-    free(parser);
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (hal) hal->memory.free(parser);
 }
 
 // Message parsing functions
@@ -293,14 +300,17 @@ bool jsonrpc_id_match(const cJSON *id1, const cJSON *id2) {
 }
 
 char *jsonrpc_id_to_string(const cJSON *id) {
-    if (!id) return strdup("null");
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    if (!id) return hal_strdup(hal, "null");
     
     if (cJSON_IsString(id)) {
-        return strdup(id->valuestring);
+        return hal_strdup(hal, id->valuestring);
     }
     
     if (cJSON_IsNumber(id)) {
-        char *str = malloc(32);
+        char *str = hal->memory.alloc(32);
         if (str) {
             snprintf(str, 32, "%.0f", id->valuedouble);
         }
@@ -308,10 +318,10 @@ char *jsonrpc_id_to_string(const cJSON *id) {
     }
     
     if (cJSON_IsNull(id)) {
-        return strdup("null");
+        return hal_strdup(hal, "null");
     }
     
-    return strdup("unknown");
+    return hal_strdup(hal, "unknown");
 }
 
 // Error creation helpers
@@ -335,8 +345,12 @@ char *jsonrpc_create_error_response(cJSON *id, int code, const char *message, cJ
 
 // Configuration helpers
 jsonrpc_parser_config_t *jsonrpc_config_create_default(void) {
-    jsonrpc_parser_config_t *config = calloc(1, sizeof(jsonrpc_parser_config_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    jsonrpc_parser_config_t *config = hal->memory.alloc(sizeof(jsonrpc_parser_config_t));
     if (!config) return NULL;
+    memset(config, 0, sizeof(jsonrpc_parser_config_t));
 
     config->strict_mode = true;
     config->allow_extensions = true;
@@ -346,8 +360,12 @@ jsonrpc_parser_config_t *jsonrpc_config_create_default(void) {
 }
 
 jsonrpc_parser_config_t *jsonrpc_config_create_strict(void) {
-    jsonrpc_parser_config_t *config = calloc(1, sizeof(jsonrpc_parser_config_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    jsonrpc_parser_config_t *config = hal->memory.alloc(sizeof(jsonrpc_parser_config_t));
     if (!config) return NULL;
+    memset(config, 0, sizeof(jsonrpc_parser_config_t));
 
     config->strict_mode = true;
     config->allow_extensions = false;
@@ -357,8 +375,12 @@ jsonrpc_parser_config_t *jsonrpc_config_create_strict(void) {
 }
 
 jsonrpc_parser_config_t *jsonrpc_config_create_lenient(void) {
-    jsonrpc_parser_config_t *config = calloc(1, sizeof(jsonrpc_parser_config_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    jsonrpc_parser_config_t *config = hal->memory.alloc(sizeof(jsonrpc_parser_config_t));
     if (!config) return NULL;
+    memset(config, 0, sizeof(jsonrpc_parser_config_t));
 
     config->strict_mode = false;
     config->allow_extensions = true;
@@ -369,5 +391,6 @@ jsonrpc_parser_config_t *jsonrpc_config_create_lenient(void) {
 
 void jsonrpc_config_destroy(jsonrpc_parser_config_t *config) {
     if (!config) return;
-    free(config);
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (hal) hal->memory.free(config);
 }

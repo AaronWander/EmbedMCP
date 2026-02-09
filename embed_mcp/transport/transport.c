@@ -1,6 +1,8 @@
 #include "transport/transport_interface.h"
 #include "transport/stdio_transport.h"
 #include "transport/http_transport.h"
+#include "hal/platform_hal.h"
+#include "hal/hal_common.h"
 #include "utils/logging.h"
 #include <stdlib.h>
 #include <string.h>
@@ -8,8 +10,12 @@
 
 // Transport factory functions
 mcp_transport_t *mcp_transport_create(mcp_transport_type_t type) {
-    mcp_transport_t *transport = calloc(1, sizeof(mcp_transport_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_transport_t *transport = hal->memory.alloc(sizeof(mcp_transport_t));
     if (!transport) return NULL;
+    memset(transport, 0, sizeof(mcp_transport_t));
     
     transport->type = type;
     transport->state = MCP_TRANSPORT_STATE_STOPPED;
@@ -30,7 +36,7 @@ mcp_transport_t *mcp_transport_create(mcp_transport_type_t type) {
             transport->interface = &mcp_http_transport_interface;
             break;
         default:
-            free(transport);
+            hal->memory.free(transport);
             return NULL;
     }
     
@@ -87,8 +93,15 @@ mcp_transport_t *mcp_transport_create_http_with_path(int port, const char *bind_
         return NULL;
     }
 
-    free(config->config.http.endpoint_path);
-    config->config.http.endpoint_path = endpoint_path ? strdup(endpoint_path) : strdup("/mcp");
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) {
+        mcp_transport_config_destroy(config);
+        mcp_transport_destroy(transport);
+        return NULL;
+    }
+
+    hal_free(hal, config->config.http.endpoint_path);
+    config->config.http.endpoint_path = endpoint_path ? hal_strdup(hal, endpoint_path) : hal_strdup(hal, "/mcp");
 
     if (mcp_transport_init(transport, config) != 0) {
         mcp_transport_config_destroy(config);
@@ -155,6 +168,8 @@ int mcp_transport_stop(mcp_transport_t *transport) {
 
 void mcp_transport_destroy(mcp_transport_t *transport) {
     if (!transport) return;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
     
     // Stop the transport if it's running
     if (transport->state == MCP_TRANSPORT_STATE_RUNNING) {
@@ -169,7 +184,7 @@ void mcp_transport_destroy(mcp_transport_t *transport) {
     // Cleanup configuration
     mcp_transport_config_destroy(transport->config);
     
-    free(transport);
+    if (hal) hal->memory.free(transport);
 }
 
 // Transport management
@@ -233,9 +248,12 @@ const char *mcp_connection_get_session_id(const mcp_connection_t *connection) {
 
 int mcp_connection_set_session_id(mcp_connection_t *connection, const char *session_id) {
     if (!connection) return -1;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return -1;
     
-    free(connection->session_id);
-    connection->session_id = session_id ? strdup(session_id) : NULL;
+    hal_free(hal, connection->session_id);
+    connection->session_id = session_id ? hal_strdup(hal, session_id) : NULL;
     
     return 0;
 }
@@ -253,8 +271,12 @@ mcp_transport_config_t *mcp_transport_config_create_default(mcp_transport_type_t
 }
 
 mcp_transport_config_t *mcp_transport_config_create_stdio(void) {
-    mcp_transport_config_t *config = calloc(1, sizeof(mcp_transport_config_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_transport_config_t *config = hal->memory.alloc(sizeof(mcp_transport_config_t));
     if (!config) return NULL;
+    memset(config, 0, sizeof(mcp_transport_config_t));
     
     config->type = MCP_TRANSPORT_STDIO;
     config->enable_logging = false;
@@ -266,8 +288,12 @@ mcp_transport_config_t *mcp_transport_config_create_stdio(void) {
 }
 
 mcp_transport_config_t *mcp_transport_config_create_http(int port, const char *bind_address) {
-    mcp_transport_config_t *config = calloc(1, sizeof(mcp_transport_config_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_transport_config_t *config = hal->memory.alloc(sizeof(mcp_transport_config_t));
     if (!config) return NULL;
+    memset(config, 0, sizeof(mcp_transport_config_t));
     
     config->type = MCP_TRANSPORT_HTTP;
     config->enable_logging = true;
@@ -276,8 +302,8 @@ mcp_transport_config_t *mcp_transport_config_create_http(int port, const char *b
     config->connection_timeout = 30; // 30 seconds
     
     config->config.http.port = port;
-    config->config.http.bind_address = bind_address ? strdup(bind_address) : strdup("0.0.0.0");
-    config->config.http.endpoint_path = strdup("/mcp");
+    config->config.http.bind_address = bind_address ? hal_strdup(hal, bind_address) : hal_strdup(hal, "0.0.0.0");
+    config->config.http.endpoint_path = hal_strdup(hal, "/mcp");
     config->config.http.enable_cors = true;
     config->config.http.max_request_size = 1024 * 1024; // 1MB
     
@@ -288,17 +314,21 @@ mcp_transport_config_t *mcp_transport_config_create_http(int port, const char *b
 
 void mcp_transport_config_destroy(mcp_transport_config_t *config) {
     if (!config) return;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
     
     switch (config->type) {
         case MCP_TRANSPORT_HTTP:
-            free(config->config.http.bind_address);
-            free(config->config.http.endpoint_path);
+            if (hal) {
+                hal_free(hal, config->config.http.bind_address);
+                hal_free(hal, config->config.http.endpoint_path);
+            }
             break;
         default:
             break;
     }
     
-    free(config);
+    if (hal) hal->memory.free(config);
 }
 
 // Utility functions

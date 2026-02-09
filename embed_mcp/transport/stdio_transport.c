@@ -1,4 +1,6 @@
 #include "transport/stdio_transport.h"
+#include "hal/platform_hal.h"
+#include "hal/hal_common.h"
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -18,35 +20,40 @@ const mcp_transport_interface_t mcp_stdio_transport_interface = {
 // STDIO-specific functions
 int mcp_stdio_transport_init_impl(mcp_transport_t *transport, const mcp_transport_config_t *config) {
     if (!transport) return -1;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return -1;
     
-    mcp_stdio_transport_data_t *data = calloc(1, sizeof(mcp_stdio_transport_data_t));
+    mcp_stdio_transport_data_t *data = hal->memory.alloc(sizeof(mcp_stdio_transport_data_t));
     if (!data) return -1;
+    memset(data, 0, sizeof(mcp_stdio_transport_data_t));
     
     // Store configuration
     if (config) {
-        transport->config = calloc(1, sizeof(mcp_transport_config_t));
+        transport->config = hal->memory.alloc(sizeof(mcp_transport_config_t));
         if (transport->config) {
+            memset(transport->config, 0, sizeof(mcp_transport_config_t));
             *transport->config = *config;
         }
     }
     
     // Setup default streams
     if (mcp_stdio_transport_setup_streams(data, stdin, stdout, stderr) != 0) {
-        free(data);
+        hal->memory.free(data);
         return -1;
     }
     
     // Setup buffering
     size_t buffer_size = config ? config->max_message_size : 8192;
     if (mcp_stdio_transport_setup_buffering(data, buffer_size, true) != 0) {
-        free(data);
+        hal->memory.free(data);
         return -1;
     }
     
     // Initialize mutex
     if (pthread_mutex_init(&data->output_mutex, NULL) != 0) {
-        free(data->input_buffer);
-        free(data);
+        hal->memory.free(data->input_buffer);
+        hal->memory.free(data);
         return -1;
     }
     
@@ -155,6 +162,9 @@ int mcp_stdio_transport_get_stats_impl(mcp_transport_t *transport, void *stats) 
 
 void mcp_stdio_transport_cleanup_impl(mcp_transport_t *transport) {
     if (!transport || !transport->private_data) return;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return;
     
     mcp_stdio_transport_data_t *data = (mcp_stdio_transport_data_t*)transport->private_data;
     
@@ -162,10 +172,10 @@ void mcp_stdio_transport_cleanup_impl(mcp_transport_t *transport) {
     pthread_mutex_destroy(&data->output_mutex);
     
     // Free buffers
-    free(data->input_buffer);
+    hal->memory.free(data->input_buffer);
     
     // Free private data
-    free(data);
+    hal->memory.free(data);
     transport->private_data = NULL;
 }
 
@@ -184,8 +194,11 @@ int mcp_stdio_transport_setup_streams(mcp_stdio_transport_data_t *data,
 int mcp_stdio_transport_setup_buffering(mcp_stdio_transport_data_t *data, 
                                        size_t buffer_size, bool line_buffered) {
     if (!data) return -1;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return -1;
     
-    data->input_buffer = malloc(buffer_size);
+    data->input_buffer = hal->memory.alloc(buffer_size);
     if (!data->input_buffer) return -1;
     
     data->input_buffer_size = 0;
@@ -236,18 +249,23 @@ void *mcp_stdio_transport_reader_thread(void *arg) {
 // STDIO connection management
 mcp_connection_t *mcp_stdio_connection_create(mcp_transport_t *transport) {
     if (!transport) return NULL;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
     
-    mcp_connection_t *connection = calloc(1, sizeof(mcp_connection_t));
+    mcp_connection_t *connection = hal->memory.alloc(sizeof(mcp_connection_t));
     if (!connection) return NULL;
+    memset(connection, 0, sizeof(mcp_connection_t));
     
-    mcp_stdio_connection_data_t *conn_data = calloc(1, sizeof(mcp_stdio_connection_data_t));
+    mcp_stdio_connection_data_t *conn_data = hal->memory.alloc(sizeof(mcp_stdio_connection_data_t));
     if (!conn_data) {
-        free(connection);
+        hal->memory.free(connection);
         return NULL;
     }
+    memset(conn_data, 0, sizeof(mcp_stdio_connection_data_t));
     
     connection->transport = transport;
-    connection->connection_id = strdup("stdio-0");
+    connection->connection_id = hal_strdup(hal, "stdio-0");
     connection->session_id = NULL;
     connection->is_active = true;
     connection->created_time = time(NULL);
@@ -266,11 +284,14 @@ mcp_connection_t *mcp_stdio_connection_create(mcp_transport_t *transport) {
 
 void mcp_stdio_connection_destroy(mcp_connection_t *connection) {
     if (!connection) return;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return;
     
-    free(connection->connection_id);
-    free(connection->session_id);
-    free(connection->private_data);
-    free(connection);
+    hal_free(hal, connection->connection_id);
+    hal_free(hal, connection->session_id);
+    hal->memory.free(connection->private_data);
+    hal->memory.free(connection);
 }
 
 // STDIO message processing

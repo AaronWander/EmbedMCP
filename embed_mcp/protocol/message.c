@@ -1,4 +1,6 @@
 #include "protocol/message.h"
+#include "hal/platform_hal.h"
+#include "hal/hal_common.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -6,14 +8,18 @@
 // Message creation functions
 mcp_message_t *mcp_message_create_request(cJSON *id, const char *method, cJSON *params) {
     if (!method) return NULL;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
     
-    mcp_message_t *message = calloc(1, sizeof(mcp_message_t));
+    mcp_message_t *message = hal->memory.alloc(sizeof(mcp_message_t));
     if (!message) return NULL;
+    memset(message, 0, sizeof(mcp_message_t));
     
     message->type = MCP_MESSAGE_REQUEST;
-    message->jsonrpc = strdup("2.0");
+    message->jsonrpc = hal_strdup(hal, "2.0");
     message->id = id ? cJSON_Duplicate(id, 1) : NULL;
-    message->method = strdup(method);
+    message->method = hal_strdup(hal, method);
     message->params = params ? cJSON_Duplicate(params, 1) : NULL;
     message->result = NULL;
     message->error = NULL;
@@ -28,14 +34,18 @@ mcp_message_t *mcp_message_create_request(cJSON *id, const char *method, cJSON *
 
 mcp_message_t *mcp_message_create_notification(const char *method, cJSON *params) {
     if (!method) return NULL;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
     
-    mcp_message_t *message = calloc(1, sizeof(mcp_message_t));
+    mcp_message_t *message = hal->memory.alloc(sizeof(mcp_message_t));
     if (!message) return NULL;
+    memset(message, 0, sizeof(mcp_message_t));
     
     message->type = MCP_MESSAGE_NOTIFICATION;
-    message->jsonrpc = strdup("2.0");
+    message->jsonrpc = hal_strdup(hal, "2.0");
     message->id = NULL;  // Notifications don't have IDs
-    message->method = strdup(method);
+    message->method = hal_strdup(hal, method);
     message->params = params ? cJSON_Duplicate(params, 1) : NULL;
     message->result = NULL;
     message->error = NULL;
@@ -49,11 +59,15 @@ mcp_message_t *mcp_message_create_notification(const char *method, cJSON *params
 }
 
 mcp_message_t *mcp_message_create_response(cJSON *id, cJSON *result) {
-    mcp_message_t *message = calloc(1, sizeof(mcp_message_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_message_t *message = hal->memory.alloc(sizeof(mcp_message_t));
     if (!message) return NULL;
+    memset(message, 0, sizeof(mcp_message_t));
     
     message->type = MCP_MESSAGE_RESPONSE;
-    message->jsonrpc = strdup("2.0");
+    message->jsonrpc = hal_strdup(hal, "2.0");
     message->id = id ? cJSON_Duplicate(id, 1) : NULL;
     message->method = NULL;
     message->params = NULL;
@@ -69,11 +83,15 @@ mcp_message_t *mcp_message_create_response(cJSON *id, cJSON *result) {
 }
 
 mcp_message_t *mcp_message_create_error_response(cJSON *id, int code, const char *message_text, cJSON *data) {
-    mcp_message_t *message = calloc(1, sizeof(mcp_message_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_message_t *message = hal->memory.alloc(sizeof(mcp_message_t));
     if (!message) return NULL;
+    memset(message, 0, sizeof(mcp_message_t));
     
     message->type = MCP_MESSAGE_ERROR;
-    message->jsonrpc = strdup("2.0");
+    message->jsonrpc = hal_strdup(hal, "2.0");
     message->id = id ? cJSON_Duplicate(id, 1) : NULL;
     message->method = NULL;
     message->params = NULL;
@@ -103,20 +121,24 @@ mcp_message_t *mcp_message_create_error_response(cJSON *id, int code, const char
 // Message parsing
 mcp_message_t *mcp_message_parse(const char *json_data) {
     if (!json_data) return NULL;
+
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
     
     cJSON *json = cJSON_Parse(json_data);
     if (!json) return NULL;
     
-    mcp_message_t *message = calloc(1, sizeof(mcp_message_t));
+    mcp_message_t *message = hal->memory.alloc(sizeof(mcp_message_t));
     if (!message) {
         cJSON_Delete(json);
         return NULL;
     }
+    memset(message, 0, sizeof(mcp_message_t));
     
     // Parse jsonrpc field
     cJSON *jsonrpc = cJSON_GetObjectItem(json, "jsonrpc");
     if (jsonrpc && cJSON_IsString(jsonrpc)) {
-        message->jsonrpc = strdup(jsonrpc->valuestring);
+        message->jsonrpc = hal_strdup(hal, jsonrpc->valuestring);
     }
     
     // Parse id field
@@ -128,7 +150,7 @@ mcp_message_t *mcp_message_parse(const char *json_data) {
     // Parse method field
     cJSON *method = cJSON_GetObjectItem(json, "method");
     if (method && cJSON_IsString(method)) {
-        message->method = strdup(method->valuestring);
+        message->method = hal_strdup(hal, method->valuestring);
     }
     
     // Parse params field
@@ -278,12 +300,16 @@ mcp_request_t *mcp_message_to_request(const mcp_message_t *message) {
         return NULL;
     }
 
-    mcp_request_t *request = calloc(1, sizeof(mcp_request_t));
-    if (!request) return NULL;
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
 
-    request->jsonrpc = message->jsonrpc ? strdup(message->jsonrpc) : NULL;
+    mcp_request_t *request = hal->memory.alloc(sizeof(mcp_request_t));
+    if (!request) return NULL;
+    memset(request, 0, sizeof(mcp_request_t));
+
+    request->jsonrpc = message->jsonrpc ? hal_strdup(hal, message->jsonrpc) : NULL;
     request->id = message->id ? cJSON_Duplicate(message->id, 1) : NULL;
-    request->method = message->method ? strdup(message->method) : NULL;
+    request->method = message->method ? hal_strdup(hal, message->method) : NULL;
     request->params = message->params ? cJSON_Duplicate(message->params, 1) : NULL;
     request->is_notification = (message->type == MCP_MESSAGE_NOTIFICATION);
 
@@ -295,10 +321,14 @@ mcp_response_t *mcp_message_to_response(const mcp_message_t *message) {
         return NULL;
     }
 
-    mcp_response_t *response = calloc(1, sizeof(mcp_response_t));
-    if (!response) return NULL;
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
 
-    response->jsonrpc = message->jsonrpc ? strdup(message->jsonrpc) : NULL;
+    mcp_response_t *response = hal->memory.alloc(sizeof(mcp_response_t));
+    if (!response) return NULL;
+    memset(response, 0, sizeof(mcp_response_t));
+
+    response->jsonrpc = message->jsonrpc ? hal_strdup(hal, message->jsonrpc) : NULL;
     response->id = message->id ? cJSON_Duplicate(message->id, 1) : NULL;
     response->result = message->result ? cJSON_Duplicate(message->result, 1) : NULL;
     response->error = message->error ? cJSON_Duplicate(message->error, 1) : NULL;
@@ -339,11 +369,15 @@ bool mcp_response_validate(const mcp_response_t *response) {
 
 // Error handling
 mcp_error_t *mcp_error_create(int code, const char *message, cJSON *data) {
-    mcp_error_t *error = calloc(1, sizeof(mcp_error_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_error_t *error = hal->memory.alloc(sizeof(mcp_error_t));
     if (!error) return NULL;
+    memset(error, 0, sizeof(mcp_error_t));
 
     error->code = code;
-    error->message = message ? strdup(message) : NULL;
+    error->message = message ? hal_strdup(hal, message) : NULL;
     error->data = data ? cJSON_Duplicate(data, 1) : NULL;
 
     return error;
@@ -375,11 +409,15 @@ mcp_error_t *mcp_error_from_json(const cJSON *json) {
     if (!code_item || !cJSON_IsNumber(code_item)) return NULL;
     if (!message_item || !cJSON_IsString(message_item)) return NULL;
 
-    mcp_error_t *error = calloc(1, sizeof(mcp_error_t));
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return NULL;
+
+    mcp_error_t *error = hal->memory.alloc(sizeof(mcp_error_t));
     if (!error) return NULL;
+    memset(error, 0, sizeof(mcp_error_t));
 
     error->code = (int)code_item->valuedouble;
-    error->message = strdup(message_item->valuestring);
+    error->message = hal_strdup(hal, message_item->valuestring);
     error->data = data_item ? cJSON_Duplicate(data_item, 1) : NULL;
 
     return error;
@@ -389,46 +427,58 @@ mcp_error_t *mcp_error_from_json(const cJSON *json) {
 void mcp_message_destroy(mcp_message_t *message) {
     if (!message) return;
 
-    free(message->jsonrpc);
-    free(message->method);
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return;
+
+    hal_free(hal, message->jsonrpc);
+    hal_free(hal, message->method);
 
     if (message->id) cJSON_Delete(message->id);
     if (message->params) cJSON_Delete(message->params);
     if (message->result) cJSON_Delete(message->result);
     if (message->error) cJSON_Delete(message->error);
 
-    free(message);
+    hal->memory.free(message);
 }
 
 void mcp_request_destroy(mcp_request_t *request) {
     if (!request) return;
 
-    free(request->jsonrpc);
-    free(request->method);
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return;
+
+    hal_free(hal, request->jsonrpc);
+    hal_free(hal, request->method);
 
     if (request->id) cJSON_Delete(request->id);
     if (request->params) cJSON_Delete(request->params);
 
-    free(request);
+    hal->memory.free(request);
 }
 
 void mcp_response_destroy(mcp_response_t *response) {
     if (!response) return;
 
-    free(response->jsonrpc);
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return;
+
+    hal_free(hal, response->jsonrpc);
 
     if (response->id) cJSON_Delete(response->id);
     if (response->result) cJSON_Delete(response->result);
     if (response->error) cJSON_Delete(response->error);
 
-    free(response);
+    hal->memory.free(response);
 }
 
 void mcp_error_destroy(mcp_error_t *error) {
     if (!error) return;
 
-    free(error->message);
+    const mcp_platform_hal_t *hal = mcp_platform_get_hal();
+    if (!hal) return;
+
+    hal_free(hal, error->message);
     if (error->data) cJSON_Delete(error->data);
 
-    free(error);
+    hal->memory.free(error);
 }
