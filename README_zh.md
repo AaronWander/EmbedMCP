@@ -291,7 +291,7 @@ valgrind ./bin/mcp_server --transport stdio
 
 ## 贡献
 
-我们欢迎贡献！请查看我们的[贡献指南](CONTRIBUTING.md)：
+我们欢迎贡献，也欢迎提交 PR！请查看我们的[贡献指南](CONTRIBUTING.md)：
 
 1. **Fork** 仓库
 2. **创建** 功能分支 (`git checkout -b feature/amazing-feature`)
@@ -323,3 +323,4 @@ make test
 
 - **问题**：[GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues)
 - **讨论**：[GitHub Discussions](https://github.com/AaronWander/EmbedMCP/discussions)
+- **Discord**：[加入我们的服务器](https://discord.gg/D3D8Ngm9PB)

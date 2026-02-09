@@ -1,4 +1,4 @@
-# EmbedMCP - Embedded MCP Server Library
+ # EmbedMCP - Embedded MCP Server Library
 
 A lightweight C library for creating MCP (Model Context Protocol) servers that transforms your existing C functions into AI-accessible tools with minimal code changes.
 
@@ -327,7 +327,7 @@ valgrind ./bin/mcp_server --transport stdio
 
 ## Contributing
 
-We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.md):
+We welcome contributions and Pull Requests! Please see our [contribution guidelines](CONTRIBUTING.md):
 
 1. **Fork** the repository
 2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
@@ -358,3 +358,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: [GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/AaronWander/EmbedMCP/discussions)
+- **Discord**: [Join our server](https://discord.gg/D3D8Ngm9PB)
