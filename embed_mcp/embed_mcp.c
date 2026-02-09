@@ -387,6 +387,29 @@ static void on_message_received(const char *message, size_t length,
     if (server->debug) {
         mcp_log_debug("Received message (%zu bytes): %.*s", length, (int)length, message);
     }
+
+    // Streamable HTTP: ensure a session id exists after initialize.
+    if (server->enable_sessions && server->session_manager && connection && !connection->session_id) {
+        cJSON *root = cJSON_ParseWithLength(message, length);
+        const cJSON *obj = NULL;
+
+        if (root && cJSON_IsObject(root)) {
+            obj = root;
+        } else if (root && cJSON_IsArray(root) && cJSON_GetArraySize(root) > 0) {
+            obj = cJSON_GetArrayItem(root, 0);
+        }
+
+        const cJSON *method = obj ? cJSON_GetObjectItem((cJSON*)obj, "method") : NULL;
+        if (method && cJSON_IsString(method) && strcmp(method->valuestring, "initialize") == 0) {
+            mcp_session_t *session = mcp_session_manager_create_session(server->session_manager, NULL);
+            if (session) {
+                mcp_connection_set_session_id(connection, mcp_session_get_id(session));
+                mcp_session_unref(session);
+            }
+        }
+
+        if (root) cJSON_Delete(root);
+    }
     
     server->current_connection = connection;
     int result = mcp_protocol_handle_message(server->protocol, message);
@@ -642,7 +665,7 @@ int embed_mcp_run(embed_mcp_server_t *server, embed_mcp_transport_t transport) {
     if (transport == EMBED_MCP_TRANSPORT_STDIO) {
         server->transport = mcp_transport_create_stdio();
     } else {
-        server->transport = mcp_transport_create_http(server->port, server->host);
+        server->transport = mcp_transport_create_http_with_path(server->port, server->host, server->path);
     }
 
     if (!server->transport) {
@@ -1313,7 +1336,5 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
 
     return 0;
 }
-
-
 
 

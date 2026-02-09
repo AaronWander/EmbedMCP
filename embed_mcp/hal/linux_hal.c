@@ -21,6 +21,20 @@
 static struct mg_mgr g_mongoose_mgr;
 static bool g_mongoose_initialized = false;
 
+// Helper: convert mg_str to a stable C string (rotating buffers).
+static const char* mg_str_to_cstr(struct mg_str str) {
+    static char buffers[4][1024];
+    static int current = 0;
+
+    char* buf = buffers[current];
+    current = (current + 1) % 4;
+
+    size_t len = str.len < (sizeof(buffers[0]) - 1) ? str.len : (sizeof(buffers[0]) - 1);
+    memcpy(buf, str.buf, len);
+    buf[len] = '\0';
+    return buf;
+}
+
 // Linux内存管理
 static void* linux_mem_alloc(size_t size) {
     return malloc(size);
@@ -144,8 +158,10 @@ static void hal_mongoose_event_handler(struct mg_connection *c, int ev, void *ev
         if (handler) {
             // 转换mongoose请求到HAL请求
             mcp_hal_http_request_t hal_req = {
-                .method = "POST",  // 简化处理，假设都是POST
-                .uri = "/mcp",     // 简化处理，假设都是/mcp
+                .method = mg_str_to_cstr(hm->method),
+                .uri = mg_str_to_cstr(hm->uri),
+                .head = hm->head.buf,
+                .head_len = hm->head.len,
                 .body = hm->body.buf,
                 .body_len = hm->body.len,
                 .connection = (mcp_hal_connection_t)c

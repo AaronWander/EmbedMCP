@@ -70,7 +70,7 @@ int main() {
     embed_mcp_add_tool(server, "add", "两个数字相加",
                        names, descs, types, 2, MCP_RETURN_DOUBLE, add_wrapper, NULL);
 
-    embed_mcp_run(server, EMBED_MCP_TRANSPORT_STREAMABLE_HTTP);
+    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
     embed_mcp_destroy(server);
     return 0;
 }
@@ -83,7 +83,7 @@ int main() {
 make
 
 # 运行Streamable HTTP服务器
-./bin/mcp_server --transport streamable-http --port 8080
+./bin/mcp_server --transport http --port 8080
 
 # 或运行STDIO服务器
 ./bin/mcp_server --transport stdio
@@ -175,11 +175,11 @@ char* get_weather(const char* city) {
 ### Streamable HTTP传输（样例）
 
 ```bash
-./my_server --transport streamable-http --port 8080
+./my_server --transport http --port 8080
 ```
 - 多个并发客户端
-- 通过`Mcp-Session-Id`头部进行会话管理
-- 通过`Mcp-Protocol-Version`头部进行协议版本协商
+- 通过`MCP-Session-Id`头部进行会话管理
+- 通过`MCP-Protocol-Version`头部进行协议版本协商
 - Web应用后端
 - 开发和测试
 
@@ -229,7 +229,7 @@ make && ./bin/mcp_server --transport stdio
 
 ### 使用MCP Inspector测试
 
-1. 启动服务器：`./bin/mcp_server --transport streamable-http --port 8080`
+1. 启动服务器：`./bin/mcp_server --transport http --port 8080`
 2. 打开 [MCP Inspector](https://inspector.mcp.dev)
 3. 连接到：`http://localhost:8080/mcp`
 4. 测试可用工具
@@ -323,4 +323,3 @@ make test
 
 - **问题**：[GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues)
 - **讨论**：[GitHub Discussions](https://github.com/AaronWander/EmbedMCP/discussions)
-

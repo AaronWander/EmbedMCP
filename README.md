@@ -70,7 +70,7 @@ int main() {
     embed_mcp_add_tool(server, "add", "Add two numbers",
                        names, descs, types, 2, MCP_RETURN_DOUBLE, add_wrapper, NULL);
 
-    embed_mcp_run(server, EMBED_MCP_TRANSPORT_STREAMABLE_HTTP);
+    embed_mcp_run(server, EMBED_MCP_TRANSPORT_HTTP);
     embed_mcp_destroy(server);
     return 0;
 }
@@ -83,7 +83,7 @@ int main() {
 make
 
 # Run Streamable HTTP server
-./bin/mcp_server --transport streamable-http --port 8080
+./bin/mcp_server --transport http --port 8080
 
 # Or run STDIO server
 ./bin/mcp_server --transport stdio
@@ -171,11 +171,11 @@ char* get_weather(const char* city) {
 ### Streamable HTTP Transport (Example)
 
 ```bash
-./my_server --transport streamable-http --port 8080
+./my_server --transport http --port 8080
 ```
 - Multiple concurrent clients
-- Session management with `Mcp-Session-Id` headers
-- Protocol version negotiation via `Mcp-Protocol-Version` headers
+- Session management with `MCP-Session-Id` headers
+- Protocol version negotiation via `MCP-Protocol-Version` headers
 - Web application backends
 - Development and testing
 
@@ -263,7 +263,7 @@ make && ./bin/mcp_server --transport stdio
 
 ### Testing with MCP Inspector
 
-1. Start the server: `./bin/mcp_server --transport streamable-http --port 8080`
+1. Start the server: `./bin/mcp_server --transport http --port 8080`
 2. Open [MCP Inspector](https://inspector.mcp.dev)
 3. Connect to: `http://localhost:8080/mcp`
 4. Test the available tools

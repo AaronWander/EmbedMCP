@@ -88,7 +88,7 @@ static void mongoose_event_handler(struct mg_connection *c, int ev, void *ev_dat
             mg_http_reply(c, hal_resp.status_code,
                          "Content-Type: application/json\r\n"
                          "Access-Control-Allow-Origin: *\r\n"
-                         "Access-Control-Allow-Headers: Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version\r\n",
+                         "Access-Control-Allow-Headers: Content-Type, Authorization, MCP-Session-Id, MCP-Protocol-Version\r\n",
                          "%s", hal_resp.body ? hal_resp.body : "");
         } else {
             mcp_log_error("Linux HTTP: Request handler failed with code %d", result);
@@ -176,7 +176,7 @@ int linux_http_send_response(void* platform_connection, const mcp_hal_http_respo
     mg_http_reply(c, response->status_code,
                  "Content-Type: application/json\r\n"
                  "Access-Control-Allow-Origin: *\r\n"
-                 "Access-Control-Allow-Headers: Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version\r\n",
+                 "Access-Control-Allow-Headers: Content-Type, Authorization, MCP-Session-Id, MCP-Protocol-Version\r\n",
                  "%.*s", (int)response->body_len, response->body ? response->body : "");
 
     return (int)response->body_len;

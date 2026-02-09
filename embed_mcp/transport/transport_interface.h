@@ -52,6 +52,7 @@ typedef struct {
         struct {
             int port;
             char *bind_address;
+            char *endpoint_path;   // MCP endpoint path (default: "/mcp")
             bool enable_cors;
             size_t max_request_size;
         } http;

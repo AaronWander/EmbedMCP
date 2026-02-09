@@ -7,6 +7,69 @@
 #include <string.h>
 #include <ctype.h>
 
+static int ascii_strncasecmp(const char* a, const char* b, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        unsigned char ca = (unsigned char)a[i];
+        unsigned char cb = (unsigned char)b[i];
+        if (tolower(ca) != tolower(cb)) return (int)tolower(ca) - (int)tolower(cb);
+        if (ca == '\0' || cb == '\0') return (int)ca - (int)cb;
+    }
+    return 0;
+}
+
+// Parse a header value from request->head (request line + headers).
+// Returns 1 if found (writes NUL-terminated value to out), 0 if not found.
+static int http_extract_header_value(const mcp_hal_http_request_t* request,
+                                     const char* header_name,
+                                     char* out,
+                                     size_t out_len) {
+    if (!request || !header_name || !out || out_len == 0 || !request->head || request->head_len == 0) {
+        return 0;
+    }
+
+    const char* p = request->head;
+    const char* end = request->head + request->head_len;
+    size_t name_len = strlen(header_name);
+
+    // Skip request line
+    const char* line = p;
+    while (line < end) {
+        const char* crlf = memchr(line, '\n', (size_t)(end - line));
+        if (!crlf) return 0;
+        line = crlf + 1;
+        break;
+    }
+
+    while (line < end) {
+        const char* lf = memchr(line, '\n', (size_t)(end - line));
+        if (!lf) lf = end;
+
+        // Empty line ends headers
+        if (lf == line || (lf == line + 1 && line[0] == '\r')) break;
+
+        const char* colon = memchr(line, ':', (size_t)(lf - line));
+        if (colon) {
+            size_t key_len = (size_t)(colon - line);
+            if (key_len == name_len && ascii_strncasecmp(line, header_name, name_len) == 0) {
+                const char* v = colon + 1;
+                while (v < lf && (*v == ' ' || *v == '\t')) v++;
+                const char* v_end = lf;
+                while (v_end > v && (v_end[-1] == '\r' || v_end[-1] == ' ' || v_end[-1] == '\t')) v_end--;
+
+                size_t copy_len = (size_t)(v_end - v);
+                if (copy_len >= out_len) copy_len = out_len - 1;
+                memcpy(out, v, copy_len);
+                out[copy_len] = '\0';
+                return 1;
+            }
+        }
+
+        line = lf + 1;
+    }
+
+    return 0;
+}
+
 // HTTP请求处理函数 - 通过HAL接口
 static void http_request_handler(const mcp_hal_http_request_t* request,
                                 mcp_hal_http_response_t* response,
@@ -15,8 +78,22 @@ static void http_request_handler(const mcp_hal_http_request_t* request,
 
     mcp_log_debug("HTTP Transport: Received %s request to %s", request->method, request->uri);
 
-    // 检查是否为POST请求到/mcp端点
-    if (strcmp(request->method, "POST") == 0 && strcmp(request->uri, "/mcp") == 0) {
+    const char* endpoint_path = (data && data->endpoint_path) ? data->endpoint_path : "/mcp";
+
+    // CORS preflight
+    if (strcmp(request->method, "OPTIONS") == 0 && strcmp(request->uri, endpoint_path) == 0) {
+        response->status_code = 204;
+        response->headers =
+            "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Methods: POST, OPTIONS\r\n"
+            "Access-Control-Allow-Headers: Content-Type, Authorization, MCP-Session-Id, MCP-Protocol-Version\r\n";
+        response->body = "";
+        response->body_len = 0;
+        return;
+    }
+
+    // 检查是否为POST请求到MCP端点
+    if (strcmp(request->method, "POST") == 0 && strcmp(request->uri, endpoint_path) == 0) {
 
         // 处理notifications/initialized
         if (request->body && strstr(request->body, "notifications/initialized")) {
@@ -47,6 +124,12 @@ static void http_request_handler(const mcp_hal_http_request_t* request,
             connection->created_time = time(NULL);
             connection->last_activity = time(NULL);
             connection->private_data = (void*)request->connection;  // 保存HAL连接
+
+            // Capture streamable-http headers if present
+            char session_id[128] = {0};
+            if (http_extract_header_value(request, "MCP-Session-Id", session_id, sizeof(session_id))) {
+                connection->session_id = strdup(session_id);
+            }
 
             // 调用消息接收回调
             if (data->transport->on_message) {
@@ -106,11 +189,15 @@ int mcp_http_transport_init_impl(mcp_transport_t *transport, const mcp_transport
         if (config->config.http.bind_address) {
             transport->config->config.http.bind_address = strdup(config->config.http.bind_address);
         }
+        if (config->config.http.endpoint_path) {
+            transport->config->config.http.endpoint_path = strdup(config->config.http.endpoint_path);
+        }
     }
 
     // Initialize HTTP data
     data->port = config->config.http.port;
     data->bind_address = config->config.http.bind_address ? strdup(config->config.http.bind_address) : strdup("0.0.0.0");
+    data->endpoint_path = config->config.http.endpoint_path ? strdup(config->config.http.endpoint_path) : strdup("/mcp");
     data->enable_cors = config->config.http.enable_cors;
     data->max_request_size = config->config.http.max_request_size;
     data->server_running = false;
@@ -195,12 +282,23 @@ int mcp_http_transport_send_impl(mcp_connection_t *connection, const char *messa
         return -1;
     }
 
+    char headers[1024];
+    int written = 0;
+    written += snprintf(headers + written, sizeof(headers) - (size_t)written,
+                        "Content-Type: application/json\r\n"
+                        "Access-Control-Allow-Origin: *\r\n"
+                        "Access-Control-Allow-Headers: Content-Type, Authorization, MCP-Session-Id, MCP-Protocol-Version\r\n"
+                        "MCP-Protocol-Version: %s\r\n",
+                        MCP_PROTOCOL_VERSION);
+    if (connection->session_id && connection->session_id[0] != '\0' && (size_t)written < sizeof(headers)) {
+        written += snprintf(headers + written, sizeof(headers) - (size_t)written,
+                            "MCP-Session-Id: %s\r\n", connection->session_id);
+    }
+
     // 构造HAL响应
     mcp_hal_http_response_t response = {
         .status_code = 200,
-        .headers = "Content-Type: application/json\r\n"
-                  "Access-Control-Allow-Origin: *\r\n"
-                  "Access-Control-Allow-Headers: Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version\r\n",
+        .headers = headers,
         .body = message,
         .body_len = length
     };

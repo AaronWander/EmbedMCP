@@ -112,6 +112,9 @@ typedef void* mcp_hal_server_t;      // Server handle (mongoose server)
 typedef struct {
     const char* method;
     const char* uri;
+    // Request head (request line + headers, excluding body). Useful for header parsing.
+    const char* head;
+    size_t head_len;
     const char* body;
     size_t body_len;
     mcp_hal_connection_t connection;

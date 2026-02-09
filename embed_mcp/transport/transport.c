@@ -77,6 +77,29 @@ mcp_transport_t *mcp_transport_create_http(int port, const char *bind_address) {
     return transport;
 }
 
+mcp_transport_t *mcp_transport_create_http_with_path(int port, const char *bind_address, const char *endpoint_path) {
+    mcp_transport_t *transport = mcp_transport_create(MCP_TRANSPORT_HTTP);
+    if (!transport) return NULL;
+
+    mcp_transport_config_t *config = mcp_transport_config_create_http(port, bind_address);
+    if (!config) {
+        mcp_transport_destroy(transport);
+        return NULL;
+    }
+
+    free(config->config.http.endpoint_path);
+    config->config.http.endpoint_path = endpoint_path ? strdup(endpoint_path) : strdup("/mcp");
+
+    if (mcp_transport_init(transport, config) != 0) {
+        mcp_transport_config_destroy(config);
+        mcp_transport_destroy(transport);
+        return NULL;
+    }
+
+    mcp_transport_config_destroy(config);
+    return transport;
+}
+
 
 
 // Transport lifecycle
@@ -254,6 +277,7 @@ mcp_transport_config_t *mcp_transport_config_create_http(int port, const char *b
     
     config->config.http.port = port;
     config->config.http.bind_address = bind_address ? strdup(bind_address) : strdup("0.0.0.0");
+    config->config.http.endpoint_path = strdup("/mcp");
     config->config.http.enable_cors = true;
     config->config.http.max_request_size = 1024 * 1024; // 1MB
     
@@ -268,6 +292,7 @@ void mcp_transport_config_destroy(mcp_transport_config_t *config) {
     switch (config->type) {
         case MCP_TRANSPORT_HTTP:
             free(config->config.http.bind_address);
+            free(config->config.http.endpoint_path);
             break;
         default:
             break;

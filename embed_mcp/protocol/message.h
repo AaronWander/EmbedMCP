@@ -6,7 +6,7 @@
 #include "cjson/cJSON.h"
 
 // MCP Protocol Version
-#define MCP_PROTOCOL_VERSION "2025-03-26"
+#define MCP_PROTOCOL_VERSION "2025-11-25"
 
 // JSON-RPC Error Codes
 #define JSONRPC_PARSE_ERROR     -32700
