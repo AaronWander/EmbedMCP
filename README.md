@@ -327,14 +327,9 @@ valgrind ./bin/mcp_server --transport stdio
 
 ## Contributing
 
-We welcome contributions and Pull Requests! Please see our [contribution guidelines](CONTRIBUTING.md):
+At this time, we’re not accepting external code contributions (PRs).
 
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Test** on multiple platforms
-5. **Push** to the branch (`git push origin feature/amazing-feature`)
-6. **Open** a Pull Request
+Issues are welcome for bug reports and feature requests.
 
 ### Development Setup
 
@@ -354,8 +349,19 @@ make test
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
+## 👥 Community & Support
 
-- **Issues**: [GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/AaronWander/EmbedMCP/discussions)
-- **Discord**: [Join our server](https://discord.gg/D3D8Ngm9PB)
+### Community Resources
+
+- Contributing: At this time, we’re not accepting external code contributions (PRs).
+- Issues are welcome for bug reports and feature requests.
+
+- 🐛 Report bugs via [GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues)
+- 💡 Suggest features in [Discussions](https://github.com/AaronWander/EmbedMCP/discussions)
+- 💬 Join our [Discord](https://discord.gg/D3D8Ngm9PB) for real-time community support
+
+### Stay Connected
+
+- 🐦 Twitter: [@KeygraphHQ](https://x.com/KeygraphHQ)
+- 💼 LinkedIn: [Keygraph](https://www.linkedin.com/company/keygraph)
+- 🌐 Website: [keygraph.io](https://keygraph.io)

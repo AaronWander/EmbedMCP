@@ -291,14 +291,9 @@ valgrind ./bin/mcp_server --transport stdio
 
 ## 贡献
 
-我们欢迎贡献，也欢迎提交 PR！请查看我们的[贡献指南](CONTRIBUTING.md)：
+当前我们暂不接受外部代码贡献（PR）。
 
-1. **Fork** 仓库
-2. **创建** 功能分支 (`git checkout -b feature/amazing-feature`)
-3. **提交** 更改 (`git commit -m 'Add amazing feature'`)
-4. **测试** 多个平台
-5. **推送** 到分支 (`git push origin feature/amazing-feature`)
-6. **打开** Pull Request
+欢迎通过 Issue 提交 Bug 报告和功能建议。
 
 ### 开发设置
 
@@ -318,9 +313,19 @@ make test
 
 本项目采用MIT许可证 - 详见 [LICENSE](LICENSE) 文件。
 
-## 支持
+## 👥 Community & Support
 
+### Community Resources
 
-- **问题**：[GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues)
-- **讨论**：[GitHub Discussions](https://github.com/AaronWander/EmbedMCP/discussions)
-- **Discord**：[加入我们的服务器](https://discord.gg/D3D8Ngm9PB)
+- Contributing: At this time, we’re not accepting external code contributions (PRs).
+- Issues are welcome for bug reports and feature requests.
+
+- 🐛 通过 [GitHub Issues](https://github.com/AaronWander/EmbedMCP/issues) 报告 Bug
+- 💡 在 [Discussions](https://github.com/AaronWander/EmbedMCP/discussions) 提交功能建议
+- 💬 加入 [Discord](https://discord.gg/D3D8Ngm9PB) 获取实时社区支持
+
+### Stay Connected
+
+- 🐦 Twitter: [@KeygraphHQ](https://x.com/KeygraphHQ)
+- 💼 LinkedIn: [Keygraph](https://www.linkedin.com/company/keygraph)
+- 🌐 Website: [keygraph.io](https://keygraph.io)
