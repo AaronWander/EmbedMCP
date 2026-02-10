@@ -362,6 +362,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Stay Connected
 
-- 🐦 Twitter: [@KeygraphHQ](https://x.com/KeygraphHQ)
-- 💼 LinkedIn: [Keygraph](https://www.linkedin.com/company/keygraph)
-- 🌐 Website: [keygraph.io](https://keygraph.io)
+- 🐦 Twitter: [@Tiyuzhao](https://x.com/Tiyuzhao)

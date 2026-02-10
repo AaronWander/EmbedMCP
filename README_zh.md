@@ -326,6 +326,4 @@ make test
 
 ### Stay Connected
 
-- 🐦 Twitter: [@KeygraphHQ](https://x.com/KeygraphHQ)
-- 💼 LinkedIn: [Keygraph](https://www.linkedin.com/company/keygraph)
-- 🌐 Website: [keygraph.io](https://keygraph.io)
+- 🐦 Twitter: [@Tiyuzhao](https://x.com/Tiyuzhao)
