@@ -93,6 +93,23 @@ make
 
 EmbedMCP支持两种注册方式：
 
+### 严格参数访问（推荐）
+
+除了 `get_*`，建议优先使用 `try_get_*`，可以明确区分“参数缺失/类型错误”和“真实的 0 或空值”。
+
+```c
+int64_t user_id;
+if (!params->try_get_int(params, "user_id", &user_id)) {
+    // 处理参数缺失或类型错误
+}
+
+double* values = NULL;
+size_t count = 0;
+if (params->try_get_double_array(params, "values", &values, &count)) {
+    // 使用 values，完成后 free(values)
+}
+```
+
 ### 简单函数（推荐）
 
 对于基本参数类型（int、double、string、bool），使用宏一键构成：
@@ -215,12 +232,13 @@ char* get_weather(const char* city) {
 ### STDIO传输  
 用于MCP客户端如Claude Desktop：
 ```bash
-./my_server --transport stdio
+./my_server --transport stdio --quiet
 ```
 - Claude Desktop集成
 - AI助手工具
 - 命令行工作流
 - 单客户端通信
+- `--quiet` 可抑制业务调试日志，减少对 stdio 协议调试场景的干扰
 
 ## 参数定义宏
 
@@ -241,6 +259,12 @@ MCP_PARAM_STRING_DEF(name, description, required)   // 字符串参数
 ## 示例服务器
 
 参数校验错误现在会返回更明确的字段级信息（例如：缺少必填字段、出现未定义字段、或嵌套字段类型错误）。
+
+可用以下命令执行冒烟回归：
+
+```bash
+make test-smoke
+```
 
 包含的示例演示了所有EmbedMCP功能：
 

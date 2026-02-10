@@ -93,6 +93,23 @@ make
 
 EmbedMCP supports two registration approaches:
 
+### Strict Parameter Access (Recommended for robust validation)
+
+In addition to `get_*` helpers, you can use strict `try_get_*` accessors to distinguish between missing/invalid input and real zero/empty values.
+
+```c
+int64_t user_id;
+if (!params->try_get_int(params, "user_id", &user_id)) {
+    // handle missing or invalid type
+}
+
+double* values = NULL;
+size_t count = 0;
+if (params->try_get_double_array(params, "values", &values, &count)) {
+    // use values, then free(values)
+}
+```
+
 ### Simple Functions (Recommended)
 
 ```c
@@ -211,12 +228,13 @@ char* get_weather(const char* city) {
 ### STDIO Transport
 For MCP clients like Claude Desktop:
 ```bash
-./my_server --transport stdio
+./my_server --transport stdio --quiet
 ```
 - Claude Desktop integration
 - AI assistant tools
 - Command-line workflows
 - Single client communication
+- `--quiet` suppresses business debug logs to keep stdio output cleaner for protocol tooling
 
 
 
@@ -282,6 +300,12 @@ MCP_PARAM_STRING_DEF(
 ## Example Server
 
 Validation errors now include clearer field-level details (for example: missing required field, unexpected field, or invalid nested field type).
+
+Smoke regression is available via:
+
+```bash
+make test-smoke
+```
 
 The included example demonstrates all EmbedMCP features:
 
