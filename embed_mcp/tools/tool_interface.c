@@ -552,6 +552,12 @@ bool mcp_tool_validate_parameter_type(const cJSON *value, const char *expected_t
 
     if (strcmp(expected_type, "string") == 0) {
         return cJSON_IsString(value);
+    } else if (strcmp(expected_type, "integer") == 0) {
+        if (!cJSON_IsNumber(value)) {
+            return false;
+        }
+        double number_value = cJSON_GetNumberValue(value);
+        return (double)((long long)number_value) == number_value;
     } else if (strcmp(expected_type, "number") == 0) {
         return cJSON_IsNumber(value);
     } else if (strcmp(expected_type, "boolean") == 0) {
