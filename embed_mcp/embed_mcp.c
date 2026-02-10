@@ -1102,6 +1102,149 @@ static cJSON* schema_handler_wrapper(const cJSON *args, void *user_data) {
     return mcp_result;
 }
 
+static int register_tool_internal(embed_mcp_server_t *server,
+                                  const char *name,
+                                  const char *description,
+                                  const cJSON *input_schema,
+                                  mcp_tool_execute_func_t execute_func,
+                                  mcp_tool_cleanup_func_t cleanup_func,
+                                  void *handler_data,
+                                  const char *create_error,
+                                  const char *register_error) {
+    if (!server || !server->tool_registry) {
+        set_error("Invalid server or tool registry not initialized");
+        return -1;
+    }
+
+    mcp_tool_t *tool = mcp_tool_create_full(name,
+                                            name,
+                                            description,
+                                            input_schema,
+                                            NULL,
+                                            execute_func,
+                                            NULL,
+                                            cleanup_func,
+                                            handler_data);
+    if (!tool) {
+        if (cleanup_func && handler_data) {
+            cleanup_func(handler_data);
+        }
+        set_error(create_error ? create_error : "Failed to create tool");
+        return -1;
+    }
+
+    if (mcp_tool_registry_register_tool(server->tool_registry, tool) != 0) {
+        mcp_tool_destroy(tool);
+        set_error(register_error ? register_error : "Failed to register tool");
+        return -1;
+    }
+
+    update_dynamic_capabilities(server);
+    return 0;
+}
+
+static universal_func_data_t* create_universal_func_data(const char **traditional_names,
+                                                         const mcp_param_desc_t *advanced_params,
+                                                         mcp_param_type_t param_types[],
+                                                         size_t param_count,
+                                                         bool advanced_mode,
+                                                         mcp_return_type_t return_type,
+                                                         mcp_universal_func_t wrapper_func,
+                                                         void *user_data) {
+    universal_func_data_t *func_data = malloc(sizeof(universal_func_data_t));
+    if (!func_data) {
+        set_error("Memory allocation failed");
+        return NULL;
+    }
+
+    func_data->wrapper_func = wrapper_func;
+    func_data->param_count = param_count;
+    func_data->return_type = return_type;
+    func_data->user_data = user_data;
+    func_data->param_names = NULL;
+    func_data->param_types = NULL;
+
+    if (param_count == 0) {
+        return func_data;
+    }
+
+    func_data->param_names = malloc(param_count * sizeof(char*));
+    func_data->param_types = malloc(param_count * sizeof(mcp_param_type_t));
+    if (!func_data->param_names || !func_data->param_types) {
+        universal_function_cleanup(func_data);
+        set_error("Memory allocation failed");
+        return NULL;
+    }
+
+    for (size_t i = 0; i < param_count; i++) {
+        const char *name = advanced_mode ? advanced_params[i].name : traditional_names[i];
+        func_data->param_names[i] = strdup(name);
+        if (!func_data->param_names[i]) {
+            universal_function_cleanup(func_data);
+            set_error("Memory allocation failed");
+            return NULL;
+        }
+
+        if (advanced_mode) {
+            if (advanced_params[i].category == MCP_PARAM_SINGLE) {
+                func_data->param_types[i] = advanced_params[i].single_type;
+            } else if (advanced_params[i].category == MCP_PARAM_ARRAY) {
+                func_data->param_types[i] = advanced_params[i].array_desc.element_type;
+            } else {
+                func_data->param_types[i] = MCP_PARAM_STRING;
+            }
+        } else {
+            func_data->param_types[i] = param_types[i];
+        }
+    }
+
+    return func_data;
+}
+
+static cJSON* create_input_schema_for_registration(const mcp_param_desc_t *advanced_params,
+                                                   const char *param_descriptions[],
+                                                   mcp_param_type_t param_types[],
+                                                   universal_func_data_t *func_data,
+                                                   size_t param_count,
+                                                   bool advanced_mode) {
+    if (param_count == 0) {
+        return NULL;
+    }
+
+    mcp_param_desc_t *temp_params = NULL;
+    const mcp_param_desc_t *schema_params = NULL;
+
+    if (advanced_mode) {
+        schema_params = advanced_params;
+    } else {
+        temp_params = malloc(param_count * sizeof(mcp_param_desc_t));
+        if (!temp_params) {
+            set_error("Memory allocation failed");
+            return NULL;
+        }
+
+        for (size_t i = 0; i < param_count; i++) {
+            temp_params[i].name = func_data->param_names[i];
+            temp_params[i].description = param_descriptions[i];
+            temp_params[i].category = MCP_PARAM_SINGLE;
+            temp_params[i].required = 1;
+            temp_params[i].single_type = param_types[i];
+        }
+        schema_params = temp_params;
+    }
+
+    cJSON *input_schema = create_schema_from_params((mcp_param_desc_t*)schema_params, param_count);
+    if (temp_params) {
+        free(temp_params);
+    }
+
+    if (!input_schema) {
+        set_error("Failed to create input schema");
+    }
+
+    return input_schema;
+}
+
 
 
 // =============================================================================
@@ -1309,179 +1452,38 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
     const char **traditional_names = advanced_mode ? NULL : (const char**)param_names;
     const mcp_param_desc_t *advanced_params = advanced_mode ? (const mcp_param_desc_t*)param_names : NULL;
 
-    // Create universal function data
-    universal_func_data_t *func_data = malloc(sizeof(universal_func_data_t));
+    universal_func_data_t *func_data = create_universal_func_data(traditional_names,
+                                                                   advanced_params,
+                                                                   param_types,
+                                                                   param_count,
+                                                                   advanced_mode,
+                                                                   return_type,
+                                                                   wrapper_func,
+                                                                   user_data);
     if (!func_data) {
-        set_error("Memory allocation failed");
         return -1;
     }
 
-    func_data->wrapper_func = wrapper_func;
-    func_data->param_count = param_count;
-    func_data->return_type = return_type;
-    func_data->user_data = user_data;
-
-
-
-    // Copy parameter names and types
-    if (param_count > 0) {
-        func_data->param_names = malloc(param_count * sizeof(char*));
-        func_data->param_types = malloc(param_count * sizeof(mcp_param_type_t));
-
-        if (!func_data->param_names || !func_data->param_types) {
-            if (func_data->param_names) free(func_data->param_names);
-            if (func_data->param_types) free(func_data->param_types);
-            free(func_data);
-            set_error("Memory allocation failed");
-            return -1;
-        }
-
-        if (advanced_mode) {
-            // Advanced mode: extract from mcp_param_desc_t
-            for (size_t i = 0; i < param_count; i++) {
-                func_data->param_names[i] = strdup(advanced_params[i].name);
-                if (!func_data->param_names[i]) {
-                    // Clean up
-                    for (size_t j = 0; j < i; j++) {
-                        free((void*)func_data->param_names[j]);
-                    }
-                    free(func_data->param_names);
-                    free(func_data->param_types);
-                    free(func_data);
-                    set_error("Memory allocation failed");
-                    return -1;
-                }
-
-                // Extract basic type for compatibility
-                if (advanced_params[i].category == MCP_PARAM_SINGLE) {
-                    func_data->param_types[i] = advanced_params[i].single_type;
-                } else if (advanced_params[i].category == MCP_PARAM_ARRAY) {
-                    func_data->param_types[i] = advanced_params[i].array_desc.element_type;
-                } else {
-                    func_data->param_types[i] = MCP_PARAM_STRING; // Default for objects
-                }
-            }
-        } else {
-            // Traditional mode: use provided arrays
-            for (size_t i = 0; i < param_count; i++) {
-                func_data->param_names[i] = strdup(traditional_names[i]);
-                if (!func_data->param_names[i]) {
-                    // Clean up
-                    for (size_t j = 0; j < i; j++) {
-                        free((void*)func_data->param_names[j]);
-                    }
-                    free(func_data->param_names);
-                    free(func_data->param_types);
-                    free(func_data);
-                    set_error("Memory allocation failed");
-                    return -1;
-                }
-            }
-            memcpy(func_data->param_types, param_types, param_count * sizeof(mcp_param_type_t));
-        }
-    } else {
-        func_data->param_names = NULL;
-        func_data->param_types = NULL;
-    }
-
-    // Create parameter descriptions for schema generation
-    mcp_param_desc_t *params = NULL;
-    bool need_free_params = false;
-
-    if (param_count > 0) {
-        if (advanced_mode) {
-            // Use the provided advanced parameters directly (cast away const for internal use)
-            params = (mcp_param_desc_t*)advanced_params;
-        } else {
-            // Create parameter descriptions from traditional arrays
-            params = malloc(param_count * sizeof(mcp_param_desc_t));
-            need_free_params = true;
-
-            if (!params) {
-                // Clean up
-                if (func_data->param_names) {
-                    for (size_t i = 0; i < param_count; i++) {
-                        free((void*)func_data->param_names[i]);
-                    }
-                    free(func_data->param_names);
-                }
-                if (func_data->param_types) {
-                    free(func_data->param_types);
-                }
-                free(func_data);
-                set_error("Memory allocation failed");
-                return -1;
-            }
-
-            for (size_t i = 0; i < param_count; i++) {
-                params[i].name = func_data->param_names[i];
-                params[i].description = param_descriptions[i];
-                params[i].category = MCP_PARAM_SINGLE;
-                params[i].required = 1;
-                params[i].single_type = param_types[i];
-            }
-        }
-    }
-
-    // Create input schema
-    cJSON *input_schema = create_schema_from_params(params, param_count);
+    cJSON *input_schema = create_input_schema_for_registration(advanced_params,
+                                                                param_descriptions,
+                                                                param_types,
+                                                                func_data,
+                                                                param_count,
+                                                                advanced_mode);
     if (!input_schema && param_count > 0) {
-        // Clean up
-        if (need_free_params && params) free(params);
-        if (func_data->param_names) {
-            for (size_t i = 0; i < param_count; i++) {
-                free((void*)func_data->param_names[i]);
-            }
-            free(func_data->param_names);
-        }
-        if (func_data->param_types) {
-            free(func_data->param_types);
-        }
-        free(func_data);
-        set_error("Failed to create input schema");
+        universal_function_cleanup(func_data);
         return -1;
     }
 
-    // Create tool
-    mcp_tool_t *tool = mcp_tool_create_full(name,
-                                            name,
-                                            description,
-                                            input_schema,
-                                            NULL,
-                                            universal_function_wrapper,
-                                            NULL,
-                                            universal_function_cleanup,
-                                            func_data);
-    if (need_free_params && params) free(params);
-
-    if (!tool) {
-        // Clean up
-        if (input_schema) cJSON_Delete(input_schema);
-        if (func_data->param_names) {
-            for (size_t i = 0; i < param_count; i++) {
-                free((void*)func_data->param_names[i]);
-            }
-            free(func_data->param_names);
-        }
-        if (func_data->param_types) {
-            free(func_data->param_types);
-        }
-        free(func_data);
-        set_error("Failed to create tool");
-        return -1;
-    }
-
-    // Register tool
-    if (mcp_tool_registry_register_tool(server->tool_registry, tool) != 0) {
-        mcp_tool_destroy(tool);
-        set_error("Failed to register tool");
-        return -1;
-    }
-
-    // Update capabilities to reflect new tools
-    update_dynamic_capabilities(server);
-
-    return 0;
+    return register_tool_internal(server,
+                                  name,
+                                  description,
+                                  input_schema,
+                                  universal_function_wrapper,
+                                  universal_function_cleanup,
+                                  func_data,
+                                  "Failed to create tool",
+                                  "Failed to register tool");
 }
 
 int embed_mcp_add_tool_with_schema(embed_mcp_server_t *server,
@@ -1489,11 +1491,6 @@ int embed_mcp_add_tool_with_schema(embed_mcp_server_t *server,
                                    const char *description,
                                    const cJSON *schema,
                                    embed_mcp_tool_handler_t handler) {
-    if (!server || !server->tool_registry) {
-        set_error("Invalid server or tool registry not initialized");
-        return -1;
-    }
-
     if (!name || !description || !handler) {
         set_error("Invalid parameters: name, description, and handler are required");
         return -1;
@@ -1506,27 +1503,13 @@ int embed_mcp_add_tool_with_schema(embed_mcp_server_t *server,
     }
     handler_data->handler = handler;
 
-    mcp_tool_t *tool = mcp_tool_create_full(name,
-                                            name,
-                                            description,
-                                            schema,
-                                            NULL,
-                                            schema_handler_wrapper,
-                                            NULL,
-                                            schema_handler_cleanup,
-                                            handler_data);
-    if (!tool) {
-        free(handler_data);
-        set_error("Failed to create tool with schema");
-        return -1;
-    }
-
-    if (mcp_tool_registry_register_tool(server->tool_registry, tool) != 0) {
-        mcp_tool_destroy(tool);
-        set_error("Failed to register schema tool");
-        return -1;
-    }
-
-    update_dynamic_capabilities(server);
-    return 0;
+    return register_tool_internal(server,
+                                  name,
+                                  description,
+                                  schema,
+                                  schema_handler_wrapper,
+                                  schema_handler_cleanup,
+                                  handler_data,
+                                  "Failed to create tool with schema",
+                                  "Failed to register schema tool");
 }
