@@ -14,13 +14,13 @@
 
 // Example 1: Simple math operation - pure business logic
 double add_numbers(double a, double b) {
-    printf("[DEBUG] Adding %.2f + %.2f\n", a, b);
+    fprintf(stderr, "[DEBUG] Adding %.2f + %.2f\n", a, b);
     return a + b;
 }
 
 // Example 2: Array processing - pure business logic
 double sum_array(double* numbers, size_t count) {
-    printf("[DEBUG] Summing array of %zu numbers\n", count);
+    fprintf(stderr, "[DEBUG] Summing array of %zu numbers\n", count);
 
     if (!numbers || count == 0) {
         return 0.0;
@@ -29,7 +29,7 @@ double sum_array(double* numbers, size_t count) {
     double total = 0.0;
     for (size_t i = 0; i < count; i++) {
         total += numbers[i];
-        printf("[DEBUG]   numbers[%zu] = %.2f, running total = %.2f\n", i, numbers[i], total);
+        fprintf(stderr, "[DEBUG]   numbers[%zu] = %.2f, running total = %.2f\n", i, numbers[i], total);
     }
 
     return total;
@@ -37,7 +37,7 @@ double sum_array(double* numbers, size_t count) {
 
 // Example 3: String processing - pure business logic
 char* get_weather(const char* city) {
-    printf("[DEBUG] Getting weather for city: %s\n", city);
+    fprintf(stderr, "[DEBUG] Getting weather for city: %s\n", city);
 
     if (strcmp(city, "济南") == 0 || strcmp(city, "jinan") == 0 ||
         strcmp(city, "Jinan") == 0 || strcmp(city, "JINAN") == 0) {
@@ -60,7 +60,7 @@ char* get_weather(const char* city) {
 // Example 4: Multi-parameter function with mixed types
 int calculate_score(int base_points, const char* grade, double multiplier) {
     char grade_char = grade[0];  // Take first character from string
-    printf("[DEBUG] Calculating score: base=%d, grade='%c', multiplier=%.2f\n",
+    fprintf(stderr, "[DEBUG] Calculating score: base=%d, grade='%c', multiplier=%.2f\n",
            base_points, grade_char, multiplier);
 
     double score = base_points * multiplier;
@@ -75,7 +75,7 @@ int calculate_score(int base_points, const char* grade, double multiplier) {
     }
 
     int final_score = (int)score;
-    printf("[DEBUG] Final score: %d\n", final_score);
+    fprintf(stderr, "[DEBUG] Final score: %d\n", final_score);
 
     return final_score;
 }
@@ -91,10 +91,10 @@ double sum_numbers(double* numbers, size_t count) {
     double sum = 0.0;
     for (size_t i = 0; i < count; i++) {
         sum += numbers[i];
-        printf("[DEBUG] Adding %.2f, running sum: %.2f\n", numbers[i], sum);
+        fprintf(stderr, "[DEBUG] Adding %.2f, running sum: %.2f\n", numbers[i], sum);
     }
 
-    printf("[DEBUG] Final sum of %zu numbers: %.2f\n", count, sum);
+    fprintf(stderr, "[DEBUG] Final sum of %zu numbers: %.2f\n", count, sum);
     return sum;
 }
 
@@ -124,7 +124,7 @@ char* join_strings(char** strings, size_t count, const char* separator) {
     if (!strings || count == 0) return strdup("");
     if (!separator) separator = ",";
 
-    printf("[DEBUG] Joining %zu strings with separator '%s'\n", count, separator);
+    fprintf(stderr, "[DEBUG] Joining %zu strings with separator '%s'\n", count, separator);
 
     // Calculate total length needed
     size_t total_len = 0;
@@ -133,7 +133,7 @@ char* join_strings(char** strings, size_t count, const char* separator) {
     for (size_t i = 0; i < count; i++) {
         if (strings[i]) {
             total_len += strlen(strings[i]);
-            printf("[DEBUG] String %zu: '%s' (length: %zu)\n", i, strings[i], strlen(strings[i]));
+            fprintf(stderr, "[DEBUG] String %zu: '%s' (length: %zu)\n", i, strings[i], strlen(strings[i]));
         }
         if (i < count - 1) total_len += sep_len;
     }
@@ -151,7 +151,7 @@ char* join_strings(char** strings, size_t count, const char* separator) {
         }
     }
 
-    printf("[DEBUG] Joined result: '%s'\n", result);
+    fprintf(stderr, "[DEBUG] Joined result: '%s'\n", result);
     return result;
 }
 
@@ -268,22 +268,22 @@ char* get_server_config(void *user_data) {
 }
 
 void print_usage(const char *program_name) {
-    printf("Usage: %s [OPTIONS]\n", program_name);
-    printf("Options:\n");
-    printf("  -t, --transport TYPE    Transport type (stdio|http) [default: stdio]\n");
-    printf("  -p, --port PORT         HTTP port [default: 9943]\n");
-    printf("  -b, --bind HOST         HTTP bind address [default: 0.0.0.0]\n");
-    printf("  -e, --endpoint PATH     HTTP endpoint path [default: /mcp]\n");
-    printf("  -d, --debug             Enable debug logging\n");
-    printf("  -h, --help              Show this help message\n");
-    printf("\nExamples:\n");
-    printf("  %s                      # STDIO transport\n", program_name);
-    printf("  %s -t http              # HTTP on default port 9943\n", program_name);
-    printf("  %s -t http -p 8080      # HTTP on port 8080\n", program_name);
-    printf("  %s -t http -b 192.168.1.100  # HTTP bind to specific IP\n", program_name);
-    printf("\nRaspberry Pi Examples:\n");
-    printf("  %s -t http -p 9943 -d   # HTTP with debug on Pi\n", program_name);
-    printf("  %s -t http -b $(hostname -I | cut -d' ' -f1) # Bind to Pi's IP\n", program_name);
+    fprintf(stderr, "Usage: %s [OPTIONS]\n", program_name);
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "  -t, --transport TYPE    Transport type (stdio|http) [default: stdio]\n");
+    fprintf(stderr, "  -p, --port PORT         HTTP port [default: 9943]\n");
+    fprintf(stderr, "  -b, --bind HOST         HTTP bind address [default: 0.0.0.0]\n");
+    fprintf(stderr, "  -e, --endpoint PATH     HTTP endpoint path [default: /mcp]\n");
+    fprintf(stderr, "  -d, --debug             Enable debug logging\n");
+    fprintf(stderr, "  -h, --help              Show this help message\n");
+    fprintf(stderr, "\nExamples:\n");
+    fprintf(stderr, "  %s                      # STDIO transport\n", program_name);
+    fprintf(stderr, "  %s -t http              # HTTP on default port 9943\n", program_name);
+    fprintf(stderr, "  %s -t http -p 8080      # HTTP on port 8080\n", program_name);
+    fprintf(stderr, "  %s -t http -b 192.168.1.100  # HTTP bind to specific IP\n", program_name);
+    fprintf(stderr, "\nRaspberry Pi Examples:\n");
+    fprintf(stderr, "  %s -t http -p 9943 -d   # HTTP with debug on Pi\n", program_name);
+    fprintf(stderr, "  %s -t http -b $(hostname -I | cut -d' ' -f1) # Bind to Pi's IP\n", program_name);
 }
 
 int main(int argc, char *argv[]) {
@@ -323,8 +323,8 @@ int main(int argc, char *argv[]) {
     }
     
     // Display system information (useful for Raspberry Pi)
-    printf("=== EmbedMCP Server ===\n");
-    printf("Platform: %s\n",
+    fprintf(stderr, "=== EmbedMCP Server ===\n");
+    fprintf(stderr, "Platform: %s\n",
 #ifdef __arm__
            "ARM (Raspberry Pi)"
 #elif defined(__aarch64__)
@@ -338,17 +338,17 @@ int main(int argc, char *argv[]) {
 
     // If HTTP mode, display network information
     if (strcmp(transport_type, "http") == 0) {
-        printf("Network Interface: %s:%d\n", bind_address, port);
-        printf("Endpoint: %s\n", endpoint_path);
+        fprintf(stderr, "Network Interface: %s:%d\n", bind_address, port);
+        fprintf(stderr, "Endpoint: %s\n", endpoint_path);
 
         // Try to get local IP (very useful for Raspberry Pi)
         if (strcmp(bind_address, "0.0.0.0") == 0) {
-            printf("Note: Server will bind to all interfaces (0.0.0.0)\n");
-            printf("      Access via: http://<your-pi-ip>:%d%s\n", port, endpoint_path);
-            printf("      Find Pi IP with: hostname -I\n");
+            fprintf(stderr, "Note: Server will bind to all interfaces (0.0.0.0)\n");
+            fprintf(stderr, "      Access via: http://<your-pi-ip>:%d%s\n", port, endpoint_path);
+            fprintf(stderr, "      Find Pi IP with: hostname -I\n");
         }
     }
-    printf("\n");
+    fprintf(stderr, "\n");
 
     // Create server configuration
     embed_mcp_config_t config = {
@@ -385,9 +385,9 @@ int main(int argc, char *argv[]) {
     if (embed_mcp_add_tool(server, "add", "Add two numbers together",
                                   add_param_names, add_param_descriptions, add_param_types, 2,
                                   MCP_RETURN_DOUBLE, add_numbers_wrapper, NULL) != 0) {
-        printf("Failed to register 'add' function: %s\n", embed_mcp_get_error());
+        fprintf(stderr, "Failed to register 'add' function: %s\n", embed_mcp_get_error());
     } else {
-        printf("Registered add(double, double) -> double\n");
+        fprintf(stderr, "Registered add(double, double) -> double\n");
     }
 
     // Example 2: Array sum function - double sum_numbers(double[])
@@ -398,9 +398,9 @@ int main(int argc, char *argv[]) {
     if (embed_mcp_add_tool(server, "sum_numbers", "Sum an array of numbers",
                            sum_params, NULL, NULL, 1, MCP_RETURN_DOUBLE,
                            sum_numbers_wrapper, NULL) != 0) {
-        printf("Failed to register 'sum_numbers' function: %s\n", embed_mcp_get_error());
+        fprintf(stderr, "Failed to register 'sum_numbers' function: %s\n", embed_mcp_get_error());
     } else {
-        printf("Registered sum_numbers(double[]) -> double\n");
+        fprintf(stderr, "Registered sum_numbers(double[]) -> double\n");
     }
 
     // Example 3: String array join function - char* join_strings(string[], string)
@@ -412,9 +412,9 @@ int main(int argc, char *argv[]) {
     if (embed_mcp_add_tool(server, "join_strings", "Join an array of strings with a separator",
                            join_params, NULL, NULL, 2, MCP_RETURN_STRING,
                            join_strings_wrapper, NULL) != 0) {
-        printf("Failed to register 'join_strings' function: %s\n", embed_mcp_get_error());
+        fprintf(stderr, "Failed to register 'join_strings' function: %s\n", embed_mcp_get_error());
     } else {
-        printf("Registered join_strings(string[], string) -> string\n");
+        fprintf(stderr, "Registered join_strings(string[], string) -> string\n");
     }
 
     // Example 3: String function - char* get_weather(const char*)
@@ -425,9 +425,9 @@ int main(int argc, char *argv[]) {
     if (embed_mcp_add_tool(server, "weather", "Get weather information for a city",
                                   weather_param_names, weather_param_descriptions, weather_param_types, 1,
                                   MCP_RETURN_STRING, get_weather_wrapper, NULL) != 0) {
-        printf("Failed to register 'weather' function: %s\n", embed_mcp_get_error());
+        fprintf(stderr, "Failed to register 'weather' function: %s\n", embed_mcp_get_error());
     } else {
-        printf("Registered get_weather(const char*) -> char*\n");
+        fprintf(stderr, "Registered get_weather(const char*) -> char*\n");
     }
 
     // Example 4: Multi-parameter function - int calculate_score(int, const char*, double)
@@ -442,9 +442,9 @@ int main(int argc, char *argv[]) {
     if (embed_mcp_add_tool(server, "calculate_score", "Calculate score with grade bonus",
                                   score_param_names, score_param_descriptions, score_param_types, 3,
                                   MCP_RETURN_INT, calculate_score_wrapper, NULL) != 0) {
-        printf("Failed to register 'calculate_score' function: %s\n", embed_mcp_get_error());
+        fprintf(stderr, "Failed to register 'calculate_score' function: %s\n", embed_mcp_get_error());
     } else {
-        printf("Registered calculate_score(int, const char*, double) -> int\n");
+        fprintf(stderr, "Registered calculate_score(int, const char*, double) -> int\n");
     }
 
     // Example 5: Complex nested schema-based tool
@@ -481,16 +481,16 @@ int main(int argc, char *argv[]) {
 
     cJSON *order_schema = cJSON_Parse(order_schema_json);
     if (!order_schema) {
-        printf("Failed to parse 'submit_order' schema JSON\n");
+        fprintf(stderr, "Failed to parse 'submit_order' schema JSON\n");
     } else {
         if (embed_mcp_add_tool_with_schema(server,
                                            "submit_order",
                                            "Submit an order with nested customer/item payload",
                                            order_schema,
                                            submit_order_with_schema) != 0) {
-            printf("Failed to register 'submit_order' schema tool: %s\n", embed_mcp_get_error());
+            fprintf(stderr, "Failed to register 'submit_order' schema tool: %s\n", embed_mcp_get_error());
         } else {
-            printf("Registered submit_order(object) -> object using schema handler\n");
+            fprintf(stderr, "Registered submit_order(object) -> object using schema handler\n");
         }
         cJSON_Delete(order_schema);
     }
@@ -499,7 +499,7 @@ int main(int argc, char *argv[]) {
     // Register Resources - Demonstrate MCP Resource System
     // =============================================================================
 
-    printf("\n=== Registering Resources ===\n");
+    fprintf(stderr, "\n=== Registering Resources ===\n");
 
     // Example 1: Static text resource
     if (embed_mcp_add_text_resource(server, "config://readme", "README",
@@ -515,27 +515,27 @@ int main(int argc, char *argv[]) {
                                     "- status://system - Dynamic system status\n"
                                     "- config://server - Server configuration\n"
                                     "- file://example.txt - Example text file\n") != 0) {
-        printf("Failed to register README resource: %s\n", embed_mcp_get_error());
+        fprintf(stderr, "Failed to register README resource: %s\n", embed_mcp_get_error());
     } else {
-        printf("✅ Registered README resource (config://readme)\n");
+        fprintf(stderr, "✅ Registered README resource (config://readme)\n");
     }
 
     // Example 2: Dynamic function resource (system status)
     if (embed_mcp_add_text_function_resource(server, "status://system", "System Status",
                                              "Real-time system status information", "application/json",
                                              get_system_status, NULL) != 0) {
-        printf("Failed to register system status resource: %s\n", embed_mcp_get_error());
+        fprintf(stderr, "Failed to register system status resource: %s\n", embed_mcp_get_error());
     } else {
-        printf("✅ Registered system status resource (status://system)\n");
+        fprintf(stderr, "✅ Registered system status resource (status://system)\n");
     }
 
     // Example 3: Dynamic function resource (server config)
     if (embed_mcp_add_text_function_resource(server, "config://server", "Server Configuration",
                                              "Current server configuration", "application/json",
                                              get_server_config, NULL) != 0) {
-        printf("Failed to register server config resource: %s\n", embed_mcp_get_error());
+        fprintf(stderr, "Failed to register server config resource: %s\n", embed_mcp_get_error());
     } else {
-        printf("✅ Registered server config resource (config://server)\n");
+        fprintf(stderr, "✅ Registered server config resource (config://server)\n");
     }
 
     // Example 4: File resource (if file exists)
@@ -549,19 +549,19 @@ int main(int argc, char *argv[]) {
 
         if (embed_mcp_add_file_resource(server, "file://example.txt", "Example File",
                                        "Example text file", NULL, example_file) != 0) {
-            printf("Failed to register file resource: %s\n", embed_mcp_get_error());
+            fprintf(stderr, "Failed to register file resource: %s\n", embed_mcp_get_error());
         } else {
-            printf("✅ Registered file resource (file://example.txt)\n");
+            fprintf(stderr, "✅ Registered file resource (file://example.txt)\n");
         }
     }
 
-    printf("📊 Total resources registered: %zu\n", embed_mcp_get_resource_count(server));
+    fprintf(stderr, "📊 Total resources registered: %zu\n", embed_mcp_get_resource_count(server));
 
     // =============================================================================
     // Register Resource Templates - Demonstrate Dynamic File Access
     // =============================================================================
 
-    printf("\n=== Registering Resource Templates ===\n");
+    fprintf(stderr, "\n=== Registering Resource Templates ===\n");
 
     // Initialize file resource system
     mcp_file_resource_init();
@@ -580,9 +580,9 @@ int main(int argc, char *argv[]) {
         mcp_resource_template_set_handler(project_template, mcp_file_resource_handler, NULL);
 
         if (embed_mcp_add_resource_template(server, project_template) == 0) {
-            printf("✅ Registered project files template (file:///./{path})\n");
+            fprintf(stderr, "✅ Registered project files template (file:///./{path})\n");
         } else {
-            printf("❌ Failed to register project files template\n");
+            fprintf(stderr, "❌ Failed to register project files template\n");
             mcp_resource_template_destroy(project_template);
         }
     }
@@ -601,50 +601,50 @@ int main(int argc, char *argv[]) {
         mcp_resource_template_set_handler(examples_template, mcp_file_resource_handler, NULL);
 
         if (embed_mcp_add_resource_template(server, examples_template) == 0) {
-            printf("✅ Registered examples template (file:///./examples/{path})\n");
+            fprintf(stderr, "✅ Registered examples template (file:///./examples/{path})\n");
         } else {
-            printf("❌ Failed to register examples template\n");
+            fprintf(stderr, "❌ Failed to register examples template\n");
             mcp_resource_template_destroy(examples_template);
         }
     }
 
-    printf("📊 Total resource templates registered: %zu\n", embed_mcp_get_resource_template_count(server));
+    fprintf(stderr, "📊 Total resource templates registered: %zu\n", embed_mcp_get_resource_template_count(server));
 
     // Run server
-    printf("EmbedMCP Example Server starting with %s transport...\n", transport_type);
+    fprintf(stderr, "EmbedMCP Example Server starting with %s transport...\n", transport_type);
     if (strcmp(transport_type, "http") == 0) {
-        printf("HTTP server will start on %s:%d%s\n", bind_address, port, endpoint_path);
-        printf("\nExample tools available:\n");
-        printf("  • add(a, b) - Add two numbers (demonstrates basic math)\n");
-        printf("  • sum_array(numbers[]) - Sum array of numbers (demonstrates array handling)\n");
-        printf("  • weather(city) - Get weather info (supports: Jinan/济南)\n");
-        printf("  • calculate_score(base, grade, multiplier) - Calculate score with grade bonus\n");
+        fprintf(stderr, "HTTP server will start on %s:%d%s\n", bind_address, port, endpoint_path);
+        fprintf(stderr, "\nExample tools available:\n");
+        fprintf(stderr, "  • add(a, b) - Add two numbers (demonstrates basic math)\n");
+        fprintf(stderr, "  • sum_array(numbers[]) - Sum array of numbers (demonstrates array handling)\n");
+        fprintf(stderr, "  • weather(city) - Get weather info (supports: Jinan/济南)\n");
+        fprintf(stderr, "  • calculate_score(base, grade, multiplier) - Calculate score with grade bonus\n");
 
-        printf("\nExample resources available:\n");
-        printf("  • config://readme - Project README (static text)\n");
-        printf("  • status://system - System status (dynamic JSON)\n");
-        printf("  • config://server - Server configuration (dynamic JSON)\n");
-        printf("  • file://example.txt - Example text file (file resource)\n");
+        fprintf(stderr, "\nExample resources available:\n");
+        fprintf(stderr, "  • config://readme - Project README (static text)\n");
+        fprintf(stderr, "  • status://system - System status (dynamic JSON)\n");
+        fprintf(stderr, "  • config://server - Server configuration (dynamic JSON)\n");
+        fprintf(stderr, "  • file://example.txt - Example text file (file resource)\n");
 
-        printf("\nTry these in MCP Inspector, Dify, or with curl!\n");
-        printf("Example curl tests:\n");
-        printf("  # List tools:\n");
-        printf("  curl -X POST http://%s:%d%s \\\n",
+        fprintf(stderr, "\nTry these in MCP Inspector, Dify, or with curl!\n");
+        fprintf(stderr, "Example curl tests:\n");
+        fprintf(stderr, "  # List tools:\n");
+        fprintf(stderr, "  curl -X POST http://%s:%d%s \\\n",
                strcmp(bind_address, "0.0.0.0") == 0 ? "localhost" : bind_address, port, endpoint_path);
-        printf("       -H 'Content-Type: application/json' \\\n");
-        printf("       -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}'\n");
-        printf("  \n");
-        printf("  # List resources:\n");
-        printf("  curl -X POST http://%s:%d%s \\\n",
+        fprintf(stderr, "       -H 'Content-Type: application/json' \\\n");
+        fprintf(stderr, "       -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}'\n");
+        fprintf(stderr, "  \n");
+        fprintf(stderr, "  # List resources:\n");
+        fprintf(stderr, "  curl -X POST http://%s:%d%s \\\n",
                strcmp(bind_address, "0.0.0.0") == 0 ? "localhost" : bind_address, port, endpoint_path);
-        printf("       -H 'Content-Type: application/json' \\\n");
-        printf("       -d '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"resources/list\"}'\n");
-        printf("  \n");
-        printf("  # Read a resource:\n");
-        printf("  curl -X POST http://%s:%d%s \\\n",
+        fprintf(stderr, "       -H 'Content-Type: application/json' \\\n");
+        fprintf(stderr, "       -d '{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"resources/list\"}'\n");
+        fprintf(stderr, "  \n");
+        fprintf(stderr, "  # Read a resource:\n");
+        fprintf(stderr, "  curl -X POST http://%s:%d%s \\\n",
                strcmp(bind_address, "0.0.0.0") == 0 ? "localhost" : bind_address, port, endpoint_path);
-        printf("       -H 'Content-Type: application/json' \\\n");
-        printf("       -d '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"resources/read\",\"params\":{\"uri\":\"status://system\"}}'\n");
+        fprintf(stderr, "       -H 'Content-Type: application/json' \\\n");
+        fprintf(stderr, "       -d '{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"resources/read\",\"params\":{\"uri\":\"status://system\"}}'\n");
     }
     
 
