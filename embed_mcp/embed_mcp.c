@@ -971,11 +971,84 @@ typedef struct {
     embed_mcp_tool_handler_t handler;
 } schema_handler_data_t;
 
+static bool is_mcp_result(const cJSON *result) {
+    if (!result || !cJSON_IsObject(result)) {
+        return false;
+    }
+
+    cJSON *content = cJSON_GetObjectItem(result, "content");
+    cJSON *is_error = cJSON_GetObjectItem(result, "isError");
+    return cJSON_IsArray(content) && cJSON_IsBool(is_error);
+}
+
+static cJSON* wrap_success_payload(cJSON *payload) {
+    cJSON *mcp_result = mcp_tool_create_success_result(payload);
+    cJSON_Delete(payload);
+    if (!mcp_result) {
+        return mcp_tool_create_memory_error();
+    }
+    return mcp_result;
+}
+
+static cJSON* convert_universal_result_to_json(void *result, mcp_return_type_t return_type) {
+    cJSON *result_data = NULL;
+
+    switch (return_type) {
+        case MCP_RETURN_INT:
+            if (result) {
+                result_data = cJSON_CreateNumber(*(int*)result);
+                free(result);
+            } else {
+                result_data = cJSON_CreateNumber(0);
+            }
+            break;
+
+        case MCP_RETURN_DOUBLE:
+            if (result) {
+                result_data = cJSON_CreateNumber(*(double*)result);
+                free(result);
+            } else {
+                result_data = cJSON_CreateNumber(0.0);
+            }
+            break;
+
+        case MCP_RETURN_STRING:
+            if (result) {
+                result_data = cJSON_CreateString((char*)result);
+                free(result);
+            } else {
+                result_data = cJSON_CreateString("");
+            }
+            break;
+
+        case MCP_RETURN_VOID:
+            if (result) {
+                free(result);
+            }
+            result_data = cJSON_CreateString("Operation completed");
+            break;
+
+        default:
+            if (result) {
+                free(result);
+            }
+            result_data = cJSON_CreateString("Unknown result type");
+            break;
+    }
+
+    return result_data;
+}
+
 // Note: custom_function_wrapper removed - replaced by universal wrapper system
 
 // Universal function wrapper that calls user-provided wrapper function
 static cJSON* universal_function_wrapper(const cJSON *args, void *user_data) {
     universal_func_data_t* data = (universal_func_data_t*)user_data;
+    if (!data || !data->wrapper_func) {
+        return mcp_tool_create_error_result(MCP_TOOL_ERROR_INTERNAL,
+                                            "Universal handler is not initialized",
+                                            NULL);
+    }
 
     // Create parameter accessor
     param_accessor_data_t accessor_data = { .args = args };
@@ -1003,48 +1076,12 @@ static cJSON* universal_function_wrapper(const cJSON *args, void *user_data) {
     // Call the user's wrapper function with the parameter accessor
     void* result = data->wrapper_func(&accessor, data->user_data);
 
-    // Convert result to structured data based on return type
-    cJSON* result_data = NULL;
-    switch (data->return_type) {
-        case MCP_RETURN_INT:
-            if (result) {
-                result_data = cJSON_CreateNumber(*(int*)result);
-                free(result);
-            } else {
-                result_data = cJSON_CreateNumber(0);
-            }
-            break;
-        case MCP_RETURN_DOUBLE:
-            if (result) {
-                result_data = cJSON_CreateNumber(*(double*)result);
-                free(result);
-            } else {
-                result_data = cJSON_CreateNumber(0.0);
-            }
-            break;
-        case MCP_RETURN_STRING:
-            if (result) {
-                result_data = cJSON_CreateString((char*)result);
-                free(result);
-            } else {
-                result_data = cJSON_CreateString("");
-            }
-            break;
-        case MCP_RETURN_VOID:
-            result_data = cJSON_CreateString("Operation completed");
-            if (result) free(result);
-            break;
-        default:
-            result_data = cJSON_CreateString("Unknown result type");
-            if (result) free(result);
-            break;
+    cJSON *result_data = convert_universal_result_to_json(result, data->return_type);
+    if (!result_data) {
+        return mcp_tool_create_memory_error();
     }
 
-    // Use the standard MCP tool success result format
-    cJSON* mcp_result = mcp_tool_create_success_result(result_data);
-    if (result_data) cJSON_Delete(result_data);
-
-    return mcp_result;
+    return wrap_success_payload(result_data);
 }
 
 static void universal_function_cleanup(void *user_data) {
@@ -1086,20 +1123,11 @@ static cJSON* schema_handler_wrapper(const cJSON *args, void *user_data) {
         return mcp_tool_create_execution_error("Schema tool handler returned null result");
     }
 
-    cJSON *content = cJSON_GetObjectItem(handler_result, "content");
-    cJSON *is_error = cJSON_GetObjectItem(handler_result, "isError");
-    bool already_mcp_result = cJSON_IsArray(content) && cJSON_IsBool(is_error);
-    if (already_mcp_result) {
+    if (is_mcp_result(handler_result)) {
         return handler_result;
     }
 
-    cJSON *mcp_result = mcp_tool_create_success_result(handler_result);
-    cJSON_Delete(handler_result);
-    if (!mcp_result) {
-        return mcp_tool_create_memory_error();
-    }
-
-    return mcp_result;
+    return wrap_success_payload(handler_result);
 }
 
 static int register_tool_internal(embed_mcp_server_t *server,
