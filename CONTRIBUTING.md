@@ -318,16 +318,14 @@ If you have questions about contributing:
 2. **Ask for help:**
    - Open a GitHub Issue for bugs or feature requests
    - Start a GitHub Discussion for general questions
-   - Join our community discussions
+   - Join our Discord community: https://discord.gg/D3D8Ngm9PB
 
 3. **Contact maintainers:**
-   - Email: [aaron@example.com](mailto:aaron@example.com)
    - GitHub: [@AaronWander](https://github.com/AaronWander)
 
 ## 🙏 Recognition
 
 Contributors will be recognized in:
-- README.md contributors section
 - Release notes for significant contributions
 - Project documentation
 
