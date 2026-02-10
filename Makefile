@@ -158,12 +158,18 @@ test-smoke: $(TARGET)
 	@printf '%s\n' \
 	'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"SmokeClient","version":"1.0.0"}}}' \
 	'{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+	'{"jsonrpc":"2.0","id":6,"method":"resources/list","params":{}}' \
+	'{"jsonrpc":"2.0","id":7,"method":"resources/read","params":{"uri":"status://system"}}' \
 	'{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"add","arguments":{"a":1.5,"b":2.5}}}' \
 	'{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"submit_order","arguments":{"customer":{},"items":[{"sku":"abc"}]}}}' \
 	'{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"submit_order","arguments":{"customer":{"name":"Alice"},"items":[{"sku":"abc","qty":2}],"priority":2}}}' \
 	| perl -e 'alarm 12; exec @ARGV' $(TARGET) > /tmp/embedmcp_smoke_output.txt || true
 	@grep -Eq '"id":[[:space:]]*2' /tmp/embedmcp_smoke_output.txt
 	@grep -q '"add"' /tmp/embedmcp_smoke_output.txt
+	@grep -Eq '"id":[[:space:]]*6' /tmp/embedmcp_smoke_output.txt
+	@grep -q '"config://readme"' /tmp/embedmcp_smoke_output.txt
+	@grep -Eq '"id":[[:space:]]*7' /tmp/embedmcp_smoke_output.txt
+	@grep -q '"status"' /tmp/embedmcp_smoke_output.txt
 	@grep -Eq '"id":[[:space:]]*3' /tmp/embedmcp_smoke_output.txt
 	@grep -Eq '"id":[[:space:]]*4' /tmp/embedmcp_smoke_output.txt
 	@grep -q 'validation_error' /tmp/embedmcp_smoke_output.txt
