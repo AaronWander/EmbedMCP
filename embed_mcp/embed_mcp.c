@@ -1182,6 +1182,20 @@ static int register_tool_internal(embed_mcp_server_t *server,
     return 0;
 }
 
+static int fail_with_error(const char *message) {
+    set_error(message ? message : "Unknown error");
+    return -1;
+}
+
+static universal_func_data_t* fail_universal_data(universal_func_data_t *func_data,
+                                                  const char *message) {
+    if (func_data) {
+        universal_function_cleanup(func_data);
+    }
+    set_error(message ? message : "Unknown error");
+    return NULL;
+}
+
 static universal_func_data_t* create_universal_func_data(const char **traditional_names,
                                                          const mcp_param_desc_t *advanced_params,
                                                          mcp_param_type_t param_types[],
@@ -1192,8 +1206,7 @@ static universal_func_data_t* create_universal_func_data(const char **traditiona
                                                          void *user_data) {
     universal_func_data_t *func_data = malloc(sizeof(universal_func_data_t));
     if (!func_data) {
-        set_error("Memory allocation failed");
-        return NULL;
+        return fail_universal_data(NULL, "Memory allocation failed");
     }
 
     func_data->wrapper_func = wrapper_func;
@@ -1210,18 +1223,14 @@ static universal_func_data_t* create_universal_func_data(const char **traditiona
     func_data->param_names = malloc(param_count * sizeof(char*));
     func_data->param_types = malloc(param_count * sizeof(mcp_param_type_t));
     if (!func_data->param_names || !func_data->param_types) {
-        universal_function_cleanup(func_data);
-        set_error("Memory allocation failed");
-        return NULL;
+        return fail_universal_data(func_data, "Memory allocation failed");
     }
 
     for (size_t i = 0; i < param_count; i++) {
         const char *name = advanced_mode ? advanced_params[i].name : traditional_names[i];
         func_data->param_names[i] = strdup(name);
         if (!func_data->param_names[i]) {
-            universal_function_cleanup(func_data);
-            set_error("Memory allocation failed");
-            return NULL;
+            return fail_universal_data(func_data, "Memory allocation failed");
         }
 
         if (advanced_mode) {
@@ -1258,7 +1267,7 @@ static cJSON* create_input_schema_for_registration(const mcp_param_desc_t *advan
     } else {
         temp_params = malloc(param_count * sizeof(mcp_param_desc_t));
         if (!temp_params) {
-            set_error("Memory allocation failed");
+            fail_with_error("Memory allocation failed");
             return NULL;
         }
 
@@ -1278,7 +1287,7 @@ static cJSON* create_input_schema_for_registration(const mcp_param_desc_t *advan
     }
 
     if (!input_schema) {
-        set_error("Failed to create input schema");
+        fail_with_error("Failed to create input schema");
     }
 
     return input_schema;
@@ -1290,8 +1299,7 @@ static int resolve_tool_param_strategy(const void *param_names,
                                        size_t param_count,
                                        tool_param_strategy_t *strategy) {
     if (!strategy) {
-        set_error("Invalid parameter strategy output");
-        return -1;
+        return fail_with_error("Invalid parameter strategy output");
     }
 
     strategy->mode = TOOL_PARAM_MODE_TRADITIONAL;
@@ -1303,8 +1311,7 @@ static int resolve_tool_param_strategy(const void *param_names,
     }
 
     if (!param_names) {
-        set_error("Invalid parameters: param_names is required when param_count > 0");
-        return -1;
+        return fail_with_error("Invalid parameters: param_names is required when param_count > 0");
     }
 
     bool advanced_mode = (param_descriptions == NULL && param_types == NULL);
@@ -1312,8 +1319,7 @@ static int resolve_tool_param_strategy(const void *param_names,
 
     if (strategy->mode == TOOL_PARAM_MODE_TRADITIONAL) {
         if (!param_descriptions || !param_types) {
-            set_error("Invalid parameters: param_descriptions and param_types are required in traditional mode");
-            return -1;
+            return fail_with_error("Invalid parameters: param_descriptions and param_types are required in traditional mode");
         }
         strategy->traditional_names = (const char**)param_names;
     } else {
@@ -1503,13 +1509,11 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
                        mcp_universal_func_t wrapper_func,
                        void *user_data) {
     if (!server || !server->tool_registry) {
-        set_error("Invalid server or tool registry not initialized");
-        return -1;
+        return fail_with_error("Invalid server or tool registry not initialized");
     }
 
     if (!name || !description || !wrapper_func) {
-        set_error("Invalid parameters: name, description, and wrapper_func are required");
-        return -1;
+        return fail_with_error("Invalid parameters: name, description, and wrapper_func are required");
     }
 
     tool_param_strategy_t strategy = {0};
@@ -1563,14 +1567,12 @@ int embed_mcp_add_tool_with_schema(embed_mcp_server_t *server,
                                    const cJSON *schema,
                                    embed_mcp_tool_handler_t handler) {
     if (!name || !description || !handler) {
-        set_error("Invalid parameters: name, description, and handler are required");
-        return -1;
+        return fail_with_error("Invalid parameters: name, description, and handler are required");
     }
 
     schema_handler_data_t *handler_data = malloc(sizeof(schema_handler_data_t));
     if (!handler_data) {
-        set_error("Memory allocation failed");
-        return -1;
+        return fail_with_error("Memory allocation failed");
     }
     handler_data->handler = handler;
 
