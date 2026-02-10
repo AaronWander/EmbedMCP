@@ -971,6 +971,17 @@ typedef struct {
     embed_mcp_tool_handler_t handler;
 } schema_handler_data_t;
 
+typedef enum {
+    TOOL_PARAM_MODE_TRADITIONAL,
+    TOOL_PARAM_MODE_ADVANCED
+} tool_param_mode_t;
+
+typedef struct {
+    tool_param_mode_t mode;
+    const char **traditional_names;
+    const mcp_param_desc_t *advanced_params;
+} tool_param_strategy_t;
+
 static bool is_mcp_result(const cJSON *result) {
     if (!result || !cJSON_IsObject(result)) {
         return false;
@@ -1273,6 +1284,45 @@ static cJSON* create_input_schema_for_registration(const mcp_param_desc_t *advan
     return input_schema;
 }
 
+static int resolve_tool_param_strategy(const void *param_names,
+                                       const char *param_descriptions[],
+                                       mcp_param_type_t param_types[],
+                                       size_t param_count,
+                                       tool_param_strategy_t *strategy) {
+    if (!strategy) {
+        set_error("Invalid parameter strategy output");
+        return -1;
+    }
+
+    strategy->mode = TOOL_PARAM_MODE_TRADITIONAL;
+    strategy->traditional_names = NULL;
+    strategy->advanced_params = NULL;
+
+    if (param_count == 0) {
+        return 0;
+    }
+
+    if (!param_names) {
+        set_error("Invalid parameters: param_names is required when param_count > 0");
+        return -1;
+    }
+
+    bool advanced_mode = (param_descriptions == NULL && param_types == NULL);
+    strategy->mode = advanced_mode ? TOOL_PARAM_MODE_ADVANCED : TOOL_PARAM_MODE_TRADITIONAL;
+
+    if (strategy->mode == TOOL_PARAM_MODE_TRADITIONAL) {
+        if (!param_descriptions || !param_types) {
+            set_error("Invalid parameters: param_descriptions and param_types are required in traditional mode");
+            return -1;
+        }
+        strategy->traditional_names = (const char**)param_names;
+    } else {
+        strategy->advanced_params = (const mcp_param_desc_t*)param_names;
+    }
+
+    return 0;
+}
+
 
 
 // =============================================================================
@@ -1462,26 +1512,19 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
         return -1;
     }
 
-    // Detect advanced mode: if param_descriptions is NULL and param_types is NULL,
-    // then param_names is actually a mcp_param_desc_t*
-    bool advanced_mode = (param_count > 0 && param_descriptions == NULL && param_types == NULL);
-
-    if (param_count > 0 && !param_names) {
-        set_error("Invalid parameters: param_names is required when param_count > 0");
+    tool_param_strategy_t strategy = {0};
+    if (resolve_tool_param_strategy(param_names,
+                                    param_descriptions,
+                                    param_types,
+                                    param_count,
+                                    &strategy) != 0) {
         return -1;
     }
 
-    if (param_count > 0 && !advanced_mode && (!param_descriptions || !param_types)) {
-        set_error("Invalid parameters: param_descriptions and param_types are required in traditional mode");
-        return -1;
-    }
+    bool advanced_mode = (strategy.mode == TOOL_PARAM_MODE_ADVANCED);
 
-    // Cast param_names to appropriate type based on mode
-    const char **traditional_names = advanced_mode ? NULL : (const char**)param_names;
-    const mcp_param_desc_t *advanced_params = advanced_mode ? (const mcp_param_desc_t*)param_names : NULL;
-
-    universal_func_data_t *func_data = create_universal_func_data(traditional_names,
-                                                                   advanced_params,
+    universal_func_data_t *func_data = create_universal_func_data(strategy.traditional_names,
+                                                                   strategy.advanced_params,
                                                                    param_types,
                                                                    param_count,
                                                                    advanced_mode,
@@ -1492,7 +1535,7 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
         return -1;
     }
 
-    cJSON *input_schema = create_input_schema_for_registration(advanced_params,
+    cJSON *input_schema = create_input_schema_for_registration(strategy.advanced_params,
                                                                 param_descriptions,
                                                                 param_types,
                                                                 func_data,
