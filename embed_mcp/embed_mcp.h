@@ -76,6 +76,9 @@ struct mcp_param_accessor {
     int (*try_get_double)(mcp_param_accessor_t* self, const char* name, double* out);
     int (*try_get_string)(mcp_param_accessor_t* self, const char* name, const char** out);
     int (*try_get_bool)(mcp_param_accessor_t* self, const char* name, int* out);
+    int (*try_get_double_array)(mcp_param_accessor_t* self, const char* name, double** out, size_t* count);
+    int (*try_get_string_array)(mcp_param_accessor_t* self, const char* name, char*** out, size_t* count);
+    int (*try_get_int_array)(mcp_param_accessor_t* self, const char* name, int64_t** out, size_t* count);
 
     // Array getters for common MCP patterns
     double* (*get_double_array)(mcp_param_accessor_t* self, const char* name, size_t* count);
@@ -676,6 +679,9 @@ const char *embed_mcp_get_error(void);
 
 #define MCP_PARAM_ARRAY_STRING_DEF(name, desc, elem_desc, req) \
     {name, desc, MCP_PARAM_ARRAY, req, .array_desc = {MCP_PARAM_STRING, elem_desc}}
+
+#define MCP_PARAM_ARRAY_BOOL_DEF(name, desc, elem_desc, req) \
+    {name, desc, MCP_PARAM_ARRAY, req, .array_desc = {MCP_PARAM_BOOL, elem_desc}}
 
 // Object parameter macro
 #define MCP_PARAM_OBJECT_DEF(name, desc, schema, req) \

@@ -245,6 +245,14 @@ MCP_PARAM_ARRAY_STRING_DEF(
     "An item name",
     1  // required
 )
+
+// Bool array
+MCP_PARAM_ARRAY_BOOL_DEF(
+    "flags",
+    "List of boolean flags",
+    "A boolean value",
+    0  // optional
+)
 ```
 
 </td>
@@ -272,6 +280,8 @@ MCP_PARAM_STRING_DEF(
 </table>
 
 ## Example Server
+
+Validation errors now include clearer field-level details (for example: missing required field, unexpected field, or invalid nested field type).
 
 The included example demonstrates all EmbedMCP features:
 

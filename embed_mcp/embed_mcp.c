@@ -87,6 +87,10 @@ static int param_get_bool(mcp_param_accessor_t* self, const char* name) {
     return cJSON_IsTrue(item) ? 1 : 0;
 }
 
+static double* param_get_double_array(mcp_param_accessor_t* self, const char* name, size_t* count);
+static char** param_get_string_array(mcp_param_accessor_t* self, const char* name, size_t* count);
+static int64_t* param_get_int_array(mcp_param_accessor_t* self, const char* name, size_t* count);
+
 static int param_try_get_int(mcp_param_accessor_t* self, const char* name, int64_t* out) {
     param_accessor_data_t* data = (param_accessor_data_t*)self->data;
     const cJSON* item = cJSON_GetObjectItem(data->args, name);
@@ -125,6 +129,30 @@ static int param_try_get_bool(mcp_param_accessor_t* self, const char* name, int*
     }
     *out = cJSON_IsTrue(item) ? 1 : 0;
     return 1;
+}
+
+static int param_try_get_double_array(mcp_param_accessor_t* self, const char* name, double** out, size_t* count) {
+    if (!out || !count) {
+        return 0;
+    }
+    *out = param_get_double_array(self, name, count);
+    return (*out != NULL);
+}
+
+static int param_try_get_string_array(mcp_param_accessor_t* self, const char* name, char*** out, size_t* count) {
+    if (!out || !count) {
+        return 0;
+    }
+    *out = param_get_string_array(self, name, count);
+    return (*out != NULL);
+}
+
+static int param_try_get_int_array(mcp_param_accessor_t* self, const char* name, int64_t** out, size_t* count) {
+    if (!out || !count) {
+        return 0;
+    }
+    *out = param_get_int_array(self, name, count);
+    return (*out != NULL);
 }
 
 static double* param_get_double_array(mcp_param_accessor_t* self, const char* name, size_t* count) {
@@ -960,6 +988,9 @@ static cJSON* universal_function_wrapper(const cJSON *args, void *user_data) {
         .try_get_double = param_try_get_double,
         .try_get_string = param_try_get_string,
         .try_get_bool = param_try_get_bool,
+        .try_get_double_array = param_try_get_double_array,
+        .try_get_string_array = param_try_get_string_array,
+        .try_get_int_array = param_try_get_int_array,
         .get_double_array = param_get_double_array,
         .get_string_array = param_get_string_array,
         .get_int_array = param_get_int_array,

@@ -5,8 +5,25 @@
 
 static bool mcp_tool_validate_object_against_schema(const cJSON *value, const cJSON *schema);
 
+static char g_validation_error_message[512] = {0};
+
+static void set_validation_errorf(const char *fmt, const char *detail) {
+    if (!fmt) {
+        snprintf(g_validation_error_message, sizeof(g_validation_error_message), "Validation failed");
+        return;
+    }
+    snprintf(g_validation_error_message, sizeof(g_validation_error_message), fmt, detail ? detail : "");
+}
+
+static void clear_validation_error(void) {
+    g_validation_error_message[0] = '\0';
+}
+
 static bool mcp_tool_validate_array_against_schema(const cJSON *value, const cJSON *schema) {
-    if (!cJSON_IsArray(value)) return false;
+    if (!cJSON_IsArray(value)) {
+        set_validation_errorf("Expected array value", NULL);
+        return false;
+    }
 
     cJSON *items = cJSON_GetObjectItem(schema, "items");
     if (!items) {
@@ -17,6 +34,9 @@ static bool mcp_tool_validate_array_against_schema(const cJSON *value, const cJS
     for (int i = 0; i < count; i++) {
         cJSON *element = cJSON_GetArrayItem(value, i);
         if (!mcp_tool_validate_parameter_against_schema(element, items)) {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "Array item %d is invalid", i);
+            set_validation_errorf("%s", msg);
             return false;
         }
     }
@@ -25,7 +45,10 @@ static bool mcp_tool_validate_array_against_schema(const cJSON *value, const cJS
 }
 
 static bool mcp_tool_validate_object_against_schema(const cJSON *value, const cJSON *schema) {
-    if (!cJSON_IsObject(value)) return false;
+    if (!cJSON_IsObject(value)) {
+        set_validation_errorf("Expected object value", NULL);
+        return false;
+    }
 
     cJSON *required = cJSON_GetObjectItem(schema, "required");
     if (required && cJSON_IsArray(required)) {
@@ -36,6 +59,9 @@ static bool mcp_tool_validate_object_against_schema(const cJSON *value, const cJ
                 continue;
             }
             if (!cJSON_HasObjectItem(value, required_name->valuestring)) {
+                char msg[128];
+                snprintf(msg, sizeof(msg), "Missing required property '%s'", required_name->valuestring);
+                set_validation_errorf("%s", msg);
                 return false;
             }
         }
@@ -62,12 +88,18 @@ static bool mcp_tool_validate_object_against_schema(const cJSON *value, const cJ
 
         if (!property_schema) {
             if (!allow_additional) {
+                char msg[128];
+                snprintf(msg, sizeof(msg), "Unexpected property '%s'", key);
+                set_validation_errorf("%s", msg);
                 return false;
             }
             continue;
         }
 
         if (!mcp_tool_validate_parameter_against_schema(entry, property_schema)) {
+            char msg[160];
+            snprintf(msg, sizeof(msg), "Invalid property '%s'", key);
+            set_validation_errorf("%s", msg);
             return false;
         }
     }
@@ -537,12 +569,18 @@ bool mcp_tool_validate_parameter_type(const cJSON *value, const char *expected_t
 
 bool mcp_tool_validate_parameter_against_schema(const cJSON *value, const cJSON *schema) {
     if (!schema) return true; // No schema means no validation
-    if (!value) return false;
+    if (!value) {
+        set_validation_errorf("No value provided", NULL);
+        return false;
+    }
 
     // Get the type from schema
     cJSON *type = cJSON_GetObjectItem(schema, "type");
     if (type && cJSON_IsString(type)) {
         if (!mcp_tool_validate_parameter_type(value, type->valuestring)) {
+            char msg[160];
+            snprintf(msg, sizeof(msg), "Expected type '%s' but got different type", type->valuestring);
+            set_validation_errorf("%s", msg);
             return false;
         }
 
@@ -561,8 +599,17 @@ bool mcp_tool_validate_parameter_against_schema(const cJSON *value, const cJSON 
 }
 
 char *mcp_tool_get_validation_error_message(const cJSON *value, const cJSON *schema) {
+    clear_validation_error();
+
     if (!schema) return strdup("No schema provided");
     if (!value) return strdup("No value provided");
+
+    if (!mcp_tool_validate_parameter_against_schema(value, schema)) {
+        if (g_validation_error_message[0] != '\0') {
+            return strdup(g_validation_error_message);
+        }
+        return strdup("Validation failed");
+    }
 
     cJSON *type = cJSON_GetObjectItem(schema, "type");
     if (type && cJSON_IsString(type)) {
@@ -667,4 +714,3 @@ cJSON *mcp_tool_create_success_result(cJSON *data) {
 
     return result;
 }
-

@@ -231,6 +231,7 @@ char* get_weather(const char* city) {
 MCP_PARAM_ARRAY_DOUBLE_DEF(name, desc, elem_desc, required)  // 双精度数组
 MCP_PARAM_ARRAY_STRING_DEF(name, desc, elem_desc, required)  // 字符串数组
 MCP_PARAM_ARRAY_INT_DEF(name, desc, elem_desc, required)     // 整数数组
+MCP_PARAM_ARRAY_BOOL_DEF(name, desc, elem_desc, required)    // 布尔数组
 
 // 单一参数宏
 MCP_PARAM_DOUBLE_DEF(name, description, required)   // 双精度参数
@@ -238,6 +239,8 @@ MCP_PARAM_STRING_DEF(name, description, required)   // 字符串参数
 ```
 
 ## 示例服务器
+
+参数校验错误现在会返回更明确的字段级信息（例如：缺少必填字段、出现未定义字段、或嵌套字段类型错误）。
 
 包含的示例演示了所有EmbedMCP功能：
 
