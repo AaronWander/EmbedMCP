@@ -87,6 +87,46 @@ static int param_get_bool(mcp_param_accessor_t* self, const char* name) {
     return cJSON_IsTrue(item) ? 1 : 0;
 }
 
+static int param_try_get_int(mcp_param_accessor_t* self, const char* name, int64_t* out) {
+    param_accessor_data_t* data = (param_accessor_data_t*)self->data;
+    const cJSON* item = cJSON_GetObjectItem(data->args, name);
+    if (!item || !cJSON_IsNumber(item) || !out) {
+        return 0;
+    }
+    *out = (int64_t)cJSON_GetNumberValue(item);
+    return 1;
+}
+
+static int param_try_get_double(mcp_param_accessor_t* self, const char* name, double* out) {
+    param_accessor_data_t* data = (param_accessor_data_t*)self->data;
+    const cJSON* item = cJSON_GetObjectItem(data->args, name);
+    if (!item || !cJSON_IsNumber(item) || !out) {
+        return 0;
+    }
+    *out = cJSON_GetNumberValue(item);
+    return 1;
+}
+
+static int param_try_get_string(mcp_param_accessor_t* self, const char* name, const char** out) {
+    param_accessor_data_t* data = (param_accessor_data_t*)self->data;
+    const cJSON* item = cJSON_GetObjectItem(data->args, name);
+    if (!item || !cJSON_IsString(item) || !out) {
+        return 0;
+    }
+    *out = cJSON_GetStringValue(item);
+    return 1;
+}
+
+static int param_try_get_bool(mcp_param_accessor_t* self, const char* name, int* out) {
+    param_accessor_data_t* data = (param_accessor_data_t*)self->data;
+    const cJSON* item = cJSON_GetObjectItem(data->args, name);
+    if (!item || !cJSON_IsBool(item) || !out) {
+        return 0;
+    }
+    *out = cJSON_IsTrue(item) ? 1 : 0;
+    return 1;
+}
+
 static double* param_get_double_array(mcp_param_accessor_t* self, const char* name, size_t* count) {
     param_accessor_data_t* data = (param_accessor_data_t*)self->data;
     const cJSON* item = cJSON_GetObjectItem(data->args, name);
@@ -912,6 +952,10 @@ static cJSON* universal_function_wrapper(const cJSON *args, void *user_data) {
         .get_double = param_get_double,
         .get_string = param_get_string,
         .get_bool = param_get_bool,
+        .try_get_int = param_try_get_int,
+        .try_get_double = param_try_get_double,
+        .try_get_string = param_try_get_string,
+        .try_get_bool = param_try_get_bool,
         .get_double_array = param_get_double_array,
         .get_string_array = param_get_string_array,
         .get_int_array = param_get_int_array,
@@ -1342,4 +1386,3 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
 
     return 0;
 }
-

@@ -71,6 +71,12 @@ struct mcp_param_accessor {
     const char* (*get_string)(mcp_param_accessor_t* self, const char* name);
     int (*get_bool)(mcp_param_accessor_t* self, const char* name);
 
+    // Strict getters with explicit success/failure
+    int (*try_get_int)(mcp_param_accessor_t* self, const char* name, int64_t* out);
+    int (*try_get_double)(mcp_param_accessor_t* self, const char* name, double* out);
+    int (*try_get_string)(mcp_param_accessor_t* self, const char* name, const char** out);
+    int (*try_get_bool)(mcp_param_accessor_t* self, const char* name, int* out);
+
     // Array getters for common MCP patterns
     double* (*get_double_array)(mcp_param_accessor_t* self, const char* name, size_t* count);
     char** (*get_string_array)(mcp_param_accessor_t* self, const char* name, size_t* count);

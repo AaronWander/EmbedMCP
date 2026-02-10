@@ -3,6 +3,78 @@
 #include <string.h>
 #include <stdio.h>
 
+static bool mcp_tool_validate_object_against_schema(const cJSON *value, const cJSON *schema);
+
+static bool mcp_tool_validate_array_against_schema(const cJSON *value, const cJSON *schema) {
+    if (!cJSON_IsArray(value)) return false;
+
+    cJSON *items = cJSON_GetObjectItem(schema, "items");
+    if (!items) {
+        return true;
+    }
+
+    int count = cJSON_GetArraySize(value);
+    for (int i = 0; i < count; i++) {
+        cJSON *element = cJSON_GetArrayItem(value, i);
+        if (!mcp_tool_validate_parameter_against_schema(element, items)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool mcp_tool_validate_object_against_schema(const cJSON *value, const cJSON *schema) {
+    if (!cJSON_IsObject(value)) return false;
+
+    cJSON *required = cJSON_GetObjectItem(schema, "required");
+    if (required && cJSON_IsArray(required)) {
+        int required_count = cJSON_GetArraySize(required);
+        for (int i = 0; i < required_count; i++) {
+            cJSON *required_name = cJSON_GetArrayItem(required, i);
+            if (!cJSON_IsString(required_name)) {
+                continue;
+            }
+            if (!cJSON_HasObjectItem(value, required_name->valuestring)) {
+                return false;
+            }
+        }
+    }
+
+    cJSON *properties = cJSON_GetObjectItem(schema, "properties");
+    cJSON *additional_properties = cJSON_GetObjectItem(schema, "additionalProperties");
+    bool allow_additional = true;
+    if (additional_properties && cJSON_IsBool(additional_properties)) {
+        allow_additional = cJSON_IsTrue(additional_properties);
+    }
+
+    cJSON *entry = NULL;
+    cJSON_ArrayForEach(entry, value) {
+        const char *key = entry->string;
+        if (!key) {
+            continue;
+        }
+
+        cJSON *property_schema = NULL;
+        if (properties && cJSON_IsObject(properties)) {
+            property_schema = cJSON_GetObjectItem(properties, key);
+        }
+
+        if (!property_schema) {
+            if (!allow_additional) {
+                return false;
+            }
+            continue;
+        }
+
+        if (!mcp_tool_validate_parameter_against_schema(entry, property_schema)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // Tool creation and destruction
 mcp_tool_t *mcp_tool_create(const char *name,
                            const char *title,
@@ -473,6 +545,14 @@ bool mcp_tool_validate_parameter_against_schema(const cJSON *value, const cJSON 
         if (!mcp_tool_validate_parameter_type(value, type->valuestring)) {
             return false;
         }
+
+        if (strcmp(type->valuestring, "object") == 0) {
+            return mcp_tool_validate_object_against_schema(value, schema);
+        }
+
+        if (strcmp(type->valuestring, "array") == 0) {
+            return mcp_tool_validate_array_against_schema(value, schema);
+        }
     }
 
     // Additional validations can be added here (minimum, maximum, pattern, etc.)
@@ -587,5 +667,4 @@ cJSON *mcp_tool_create_success_result(cJSON *data) {
 
     return result;
 }
-
 
