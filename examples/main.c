@@ -197,6 +197,26 @@ EMBED_MCP_WRAPPER(calculate_score_wrapper, calculate_score, INT, INT, base_point
 // Note: Array functions use traditional wrappers (sum_numbers_wrapper, join_strings_wrapper)
 // because array parameter handling is more complex and requires count management
 
+// Schema-based handler for complex nested input
+cJSON* submit_order_with_schema(const cJSON *args) {
+    const cJSON *customer = cJSON_GetObjectItem(args, "customer");
+    const cJSON *name = customer ? cJSON_GetObjectItem(customer, "name") : NULL;
+    const cJSON *items = cJSON_GetObjectItem(args, "items");
+    const cJSON *priority = cJSON_GetObjectItem(args, "priority");
+
+    int item_count = (items && cJSON_IsArray(items)) ? cJSON_GetArraySize(items) : 0;
+    int priority_value = (priority && cJSON_IsNumber(priority)) ? (int)cJSON_GetNumberValue(priority) : 1;
+
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddStringToObject(result, "status", "accepted");
+    cJSON_AddStringToObject(result, "customer", (name && cJSON_IsString(name)) ? cJSON_GetStringValue(name) : "unknown");
+    cJSON_AddNumberToObject(result, "itemCount", item_count);
+    cJSON_AddStringToObject(result, "queue", priority_value >= 2 ? "priority" : "standard");
+    cJSON_AddStringToObject(result, "message", "Order received and queued");
+
+    return result;
+}
+
 // =============================================================================
 // Resource Examples - Demonstrate MCP Resource System
 // =============================================================================
@@ -425,6 +445,54 @@ int main(int argc, char *argv[]) {
         printf("Failed to register 'calculate_score' function: %s\n", embed_mcp_get_error());
     } else {
         printf("Registered calculate_score(int, const char*, double) -> int\n");
+    }
+
+    // Example 5: Complex nested schema-based tool
+    const char *order_schema_json =
+        "{"
+        "\"type\":\"object\","
+        "\"properties\":{"
+          "\"customer\":{"
+            "\"type\":\"object\","
+            "\"properties\":{"
+              "\"name\":{\"type\":\"string\"},"
+              "\"email\":{\"type\":\"string\"}"
+            "},"
+            "\"required\":[\"name\"],"
+            "\"additionalProperties\":false"
+          "},"
+          "\"items\":{"
+            "\"type\":\"array\","
+            "\"items\":{"
+              "\"type\":\"object\","
+              "\"properties\":{"
+                "\"sku\":{\"type\":\"string\"},"
+                "\"qty\":{\"type\":\"integer\"}"
+              "},"
+              "\"required\":[\"sku\",\"qty\"],"
+              "\"additionalProperties\":false"
+            "}"
+          "},"
+          "\"priority\":{\"type\":\"integer\"}"
+        "},"
+        "\"required\":[\"customer\",\"items\"],"
+        "\"additionalProperties\":false"
+      "}";
+
+    cJSON *order_schema = cJSON_Parse(order_schema_json);
+    if (!order_schema) {
+        printf("Failed to parse 'submit_order' schema JSON\n");
+    } else {
+        if (embed_mcp_add_tool_with_schema(server,
+                                           "submit_order",
+                                           "Submit an order with nested customer/item payload",
+                                           order_schema,
+                                           submit_order_with_schema) != 0) {
+            printf("Failed to register 'submit_order' schema tool: %s\n", embed_mcp_get_error());
+        } else {
+            printf("Registered submit_order(object) -> object using schema handler\n");
+        }
+        cJSON_Delete(order_schema);
     }
 
     // =============================================================================

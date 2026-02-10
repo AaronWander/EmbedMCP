@@ -151,6 +151,35 @@ embed_mcp_add_tool(server, "sum", "数字求和", params, NULL, NULL, 1,
                    MCP_RETURN_DOUBLE, sum_wrapper, NULL);
 ```
 
+### 复杂嵌套输入（Schema 模式）
+
+当工具需要嵌套对象、对象数组或严格约束时，使用 `embed_mcp_add_tool_with_schema`。
+
+```c
+cJSON* submit_order_with_schema(const cJSON *args) {
+    const cJSON *customer = cJSON_GetObjectItem(args, "customer");
+    const cJSON *name = customer ? cJSON_GetObjectItem(customer, "name") : NULL;
+    const cJSON *items = cJSON_GetObjectItem(args, "items");
+
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddStringToObject(result, "status", "accepted");
+    cJSON_AddStringToObject(result, "customer",
+        (name && cJSON_IsString(name)) ? cJSON_GetStringValue(name) : "unknown");
+    cJSON_AddNumberToObject(result, "itemCount", cJSON_IsArray(items) ? cJSON_GetArraySize(items) : 0);
+    return result;
+}
+
+const char *schema_json =
+    "{\"type\":\"object\",\"properties\":{"
+      "\"customer\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}},\"required\":[\"name\"],\"additionalProperties\":false},"
+      "\"items\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"sku\":{\"type\":\"string\"},\"qty\":{\"type\":\"integer\"}},\"required\":[\"sku\",\"qty\"],\"additionalProperties\":false}}"
+    "},\"required\":[\"customer\",\"items\"],\"additionalProperties\":false}";
+
+cJSON *schema = cJSON_Parse(schema_json);
+embed_mcp_add_tool_with_schema(server, "submit_order", "提交嵌套订单参数", schema, submit_order_with_schema);
+cJSON_Delete(schema);
+```
+
 ## 内存管理
 
 EmbedMCP自动处理大部分内存管理：
@@ -226,6 +255,7 @@ make && ./bin/mcp_server --transport stdio
 | `join_strings` | `strings: string[], separator: string` | 连接字符串数组 | `join_strings(["a","b"], ",")` → `"a,b"` |
 | `weather` | `city: string` | 获取天气信息 | `weather("济南")` → 天气报告 |
 | `calculate_score` | `base_points: int, grade: string, multiplier: number` | 计算带奖励的分数 | `calculate_score(80, "A", 1.2)` → `120` |
+| `submit_order` | `customer: object, items: object[], priority?: int` | Schema 模式复杂参数示例 | `submit_order({...})` → accepted result |
 
 ### 使用MCP Inspector测试
 

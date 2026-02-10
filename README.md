@@ -147,6 +147,35 @@ embed_mcp_add_tool(server, "sum", "Sum numbers", params, NULL, NULL, 1,
                    MCP_RETURN_DOUBLE, sum_wrapper, NULL);
 ```
 
+### Complex Nested Input (Schema-Based)
+
+Use `embed_mcp_add_tool_with_schema` when your tool needs nested objects, arrays of objects, or strict schema constraints.
+
+```c
+cJSON* submit_order_with_schema(const cJSON *args) {
+    const cJSON *customer = cJSON_GetObjectItem(args, "customer");
+    const cJSON *name = customer ? cJSON_GetObjectItem(customer, "name") : NULL;
+    const cJSON *items = cJSON_GetObjectItem(args, "items");
+
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddStringToObject(result, "status", "accepted");
+    cJSON_AddStringToObject(result, "customer",
+        (name && cJSON_IsString(name)) ? cJSON_GetStringValue(name) : "unknown");
+    cJSON_AddNumberToObject(result, "itemCount", cJSON_IsArray(items) ? cJSON_GetArraySize(items) : 0);
+    return result;
+}
+
+const char *schema_json =
+    "{\"type\":\"object\",\"properties\":{"
+      "\"customer\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}},\"required\":[\"name\"],\"additionalProperties\":false},"
+      "\"items\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"sku\":{\"type\":\"string\"},\"qty\":{\"type\":\"integer\"}},\"required\":[\"sku\",\"qty\"],\"additionalProperties\":false}}"
+    "},\"required\":[\"customer\",\"items\"],\"additionalProperties\":false}";
+
+cJSON *schema = cJSON_Parse(schema_json);
+embed_mcp_add_tool_with_schema(server, "submit_order", "Submit nested order payload", schema, submit_order_with_schema);
+cJSON_Delete(schema);
+```
+
 ## Memory Management
 
 EmbedMCP handles most memory management automatically:
@@ -260,6 +289,7 @@ make && ./bin/mcp_server --transport stdio
 | `join_strings` | `strings: string[], separator: string` | Join string array | `join_strings(["a","b"], ",")` → `"a,b"` |
 | `weather` | `city: string` | Get weather info | `weather("济南")` → Weather report |
 | `calculate_score` | `base_points: int, grade: string, multiplier: number` | Calculate score with bonus | `calculate_score(80, "A", 1.2)` → `120` |
+| `submit_order` | `customer: object, items: object[], priority?: int` | Schema-based nested payload example | `submit_order({...})` → accepted result |
 
 ### Testing with MCP Inspector
 
