@@ -4,6 +4,14 @@
 #include <string.h>
 #include <getopt.h>
 
+static int g_quiet = 0;
+
+#define DEBUG_LOG(...) do { \
+    if (!g_quiet) { \
+        fprintf(stderr, __VA_ARGS__); \
+    } \
+} while (0)
+
 // =============================================================================
 // Pure Business Function Examples - No JSON handling required!
 // =============================================================================
@@ -14,13 +22,13 @@
 
 // Example 1: Simple math operation - pure business logic
 double add_numbers(double a, double b) {
-    fprintf(stderr, "[DEBUG] Adding %.2f + %.2f\n", a, b);
+    DEBUG_LOG("[DEBUG] Adding %.2f + %.2f\n", a, b);
     return a + b;
 }
 
 // Example 2: Array processing - pure business logic
 double sum_array(double* numbers, size_t count) {
-    fprintf(stderr, "[DEBUG] Summing array of %zu numbers\n", count);
+    DEBUG_LOG("[DEBUG] Summing array of %zu numbers\n", count);
 
     if (!numbers || count == 0) {
         return 0.0;
@@ -29,7 +37,7 @@ double sum_array(double* numbers, size_t count) {
     double total = 0.0;
     for (size_t i = 0; i < count; i++) {
         total += numbers[i];
-        fprintf(stderr, "[DEBUG]   numbers[%zu] = %.2f, running total = %.2f\n", i, numbers[i], total);
+        DEBUG_LOG("[DEBUG]   numbers[%zu] = %.2f, running total = %.2f\n", i, numbers[i], total);
     }
 
     return total;
@@ -37,7 +45,7 @@ double sum_array(double* numbers, size_t count) {
 
 // Example 3: String processing - pure business logic
 char* get_weather(const char* city) {
-    fprintf(stderr, "[DEBUG] Getting weather for city: %s\n", city);
+    DEBUG_LOG("[DEBUG] Getting weather for city: %s\n", city);
 
     if (strcmp(city, "济南") == 0 || strcmp(city, "jinan") == 0 ||
         strcmp(city, "Jinan") == 0 || strcmp(city, "JINAN") == 0) {
@@ -60,7 +68,7 @@ char* get_weather(const char* city) {
 // Example 4: Multi-parameter function with mixed types
 int calculate_score(int base_points, const char* grade, double multiplier) {
     char grade_char = grade[0];  // Take first character from string
-    fprintf(stderr, "[DEBUG] Calculating score: base=%d, grade='%c', multiplier=%.2f\n",
+    DEBUG_LOG("[DEBUG] Calculating score: base=%d, grade='%c', multiplier=%.2f\n",
            base_points, grade_char, multiplier);
 
     double score = base_points * multiplier;
@@ -75,7 +83,7 @@ int calculate_score(int base_points, const char* grade, double multiplier) {
     }
 
     int final_score = (int)score;
-    fprintf(stderr, "[DEBUG] Final score: %d\n", final_score);
+    DEBUG_LOG("[DEBUG] Final score: %d\n", final_score);
 
     return final_score;
 }
@@ -91,10 +99,10 @@ double sum_numbers(double* numbers, size_t count) {
     double sum = 0.0;
     for (size_t i = 0; i < count; i++) {
         sum += numbers[i];
-        fprintf(stderr, "[DEBUG] Adding %.2f, running sum: %.2f\n", numbers[i], sum);
+        DEBUG_LOG("[DEBUG] Adding %.2f, running sum: %.2f\n", numbers[i], sum);
     }
 
-    fprintf(stderr, "[DEBUG] Final sum of %zu numbers: %.2f\n", count, sum);
+    DEBUG_LOG("[DEBUG] Final sum of %zu numbers: %.2f\n", count, sum);
     return sum;
 }
 
@@ -124,7 +132,7 @@ char* join_strings(char** strings, size_t count, const char* separator) {
     if (!strings || count == 0) return strdup("");
     if (!separator) separator = ",";
 
-    fprintf(stderr, "[DEBUG] Joining %zu strings with separator '%s'\n", count, separator);
+    DEBUG_LOG("[DEBUG] Joining %zu strings with separator '%s'\n", count, separator);
 
     // Calculate total length needed
     size_t total_len = 0;
@@ -133,7 +141,7 @@ char* join_strings(char** strings, size_t count, const char* separator) {
     for (size_t i = 0; i < count; i++) {
         if (strings[i]) {
             total_len += strlen(strings[i]);
-            fprintf(stderr, "[DEBUG] String %zu: '%s' (length: %zu)\n", i, strings[i], strlen(strings[i]));
+            DEBUG_LOG("[DEBUG] String %zu: '%s' (length: %zu)\n", i, strings[i], strlen(strings[i]));
         }
         if (i < count - 1) total_len += sep_len;
     }
@@ -151,7 +159,7 @@ char* join_strings(char** strings, size_t count, const char* separator) {
         }
     }
 
-    fprintf(stderr, "[DEBUG] Joined result: '%s'\n", result);
+    DEBUG_LOG("[DEBUG] Joined result: '%s'\n", result);
     return result;
 }
 
@@ -275,6 +283,7 @@ void print_usage(const char *program_name) {
     fprintf(stderr, "  -b, --bind HOST         HTTP bind address [default: 0.0.0.0]\n");
     fprintf(stderr, "  -e, --endpoint PATH     HTTP endpoint path [default: /mcp]\n");
     fprintf(stderr, "  -d, --debug             Enable debug logging\n");
+    fprintf(stderr, "  -q, --quiet             Suppress business debug logs in stdio mode\n");
     fprintf(stderr, "  -h, --help              Show this help message\n");
     fprintf(stderr, "\nExamples:\n");
     fprintf(stderr, "  %s                      # STDIO transport\n", program_name);
@@ -301,18 +310,20 @@ int main(int argc, char *argv[]) {
         {"bind", required_argument, 0, 'b'},
         {"endpoint", required_argument, 0, 'e'},
         {"debug", no_argument, 0, 'd'},
+        {"quiet", no_argument, 0, 'q'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
     
     int c;
-    while ((c = getopt_long(argc, argv, "t:p:b:e:dh", long_options, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "t:p:b:e:dqh", long_options, NULL)) != -1) {
         switch (c) {
             case 't': transport_type = optarg; break;
             case 'p': port = atoi(optarg); break;
             case 'b': bind_address = optarg; break;
             case 'e': endpoint_path = optarg; break;
             case 'd': debug = 1; break;
+            case 'q': g_quiet = 1; break;
             case 'h':
                 print_usage(argv[0]);
                 return 0;
