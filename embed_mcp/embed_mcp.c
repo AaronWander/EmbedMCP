@@ -1016,6 +1016,26 @@ static cJSON* universal_function_wrapper(const cJSON *args, void *user_data) {
     return mcp_result;
 }
 
+static void universal_function_cleanup(void *user_data) {
+    universal_func_data_t *data = (universal_func_data_t*)user_data;
+    if (!data) {
+        return;
+    }
+
+    if (data->param_names) {
+        for (size_t i = 0; i < data->param_count; i++) {
+            free((void*)data->param_names[i]);
+        }
+        free((void*)data->param_names);
+    }
+
+    if (data->param_types) {
+        free(data->param_types);
+    }
+
+    free(data);
+}
+
 static void schema_handler_cleanup(void *user_data) {
     if (user_data) {
         free(user_data);
@@ -1392,8 +1412,15 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
     }
 
     // Create tool
-    mcp_tool_t *tool = mcp_tool_create(name, name, description, input_schema,
-                                      universal_function_wrapper, func_data);
+    mcp_tool_t *tool = mcp_tool_create_full(name,
+                                            name,
+                                            description,
+                                            input_schema,
+                                            NULL,
+                                            universal_function_wrapper,
+                                            NULL,
+                                            universal_function_cleanup,
+                                            func_data);
     if (need_free_params && params) free(params);
 
     if (!tool) {
