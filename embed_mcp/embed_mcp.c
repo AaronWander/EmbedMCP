@@ -939,6 +939,10 @@ typedef struct {
     void* user_data;
 } universal_func_data_t;
 
+typedef struct {
+    embed_mcp_tool_handler_t handler;
+} schema_handler_data_t;
+
 // Note: custom_function_wrapper removed - replaced by universal wrapper system
 
 // Universal function wrapper that calls user-provided wrapper function
@@ -1008,6 +1012,41 @@ static cJSON* universal_function_wrapper(const cJSON *args, void *user_data) {
     // Use the standard MCP tool success result format
     cJSON* mcp_result = mcp_tool_create_success_result(result_data);
     if (result_data) cJSON_Delete(result_data);
+
+    return mcp_result;
+}
+
+static void schema_handler_cleanup(void *user_data) {
+    if (user_data) {
+        free(user_data);
+    }
+}
+
+static cJSON* schema_handler_wrapper(const cJSON *args, void *user_data) {
+    schema_handler_data_t *data = (schema_handler_data_t*)user_data;
+    if (!data || !data->handler) {
+        return mcp_tool_create_error_result(MCP_TOOL_ERROR_INTERNAL,
+                                            "Schema handler is not initialized",
+                                            NULL);
+    }
+
+    cJSON *handler_result = data->handler(args);
+    if (!handler_result) {
+        return mcp_tool_create_execution_error("Schema tool handler returned null result");
+    }
+
+    cJSON *content = cJSON_GetObjectItem(handler_result, "content");
+    cJSON *is_error = cJSON_GetObjectItem(handler_result, "isError");
+    bool already_mcp_result = cJSON_IsArray(content) && cJSON_IsBool(is_error);
+    if (already_mcp_result) {
+        return handler_result;
+    }
+
+    cJSON *mcp_result = mcp_tool_create_success_result(handler_result);
+    cJSON_Delete(handler_result);
+    if (!mcp_result) {
+        return mcp_tool_create_memory_error();
+    }
 
     return mcp_result;
 }
@@ -1384,5 +1423,52 @@ int embed_mcp_add_tool(embed_mcp_server_t *server,
     // Update capabilities to reflect new tools
     update_dynamic_capabilities(server);
 
+    return 0;
+}
+
+int embed_mcp_add_tool_with_schema(embed_mcp_server_t *server,
+                                   const char *name,
+                                   const char *description,
+                                   const cJSON *schema,
+                                   embed_mcp_tool_handler_t handler) {
+    if (!server || !server->tool_registry) {
+        set_error("Invalid server or tool registry not initialized");
+        return -1;
+    }
+
+    if (!name || !description || !handler) {
+        set_error("Invalid parameters: name, description, and handler are required");
+        return -1;
+    }
+
+    schema_handler_data_t *handler_data = malloc(sizeof(schema_handler_data_t));
+    if (!handler_data) {
+        set_error("Memory allocation failed");
+        return -1;
+    }
+    handler_data->handler = handler;
+
+    mcp_tool_t *tool = mcp_tool_create_full(name,
+                                            name,
+                                            description,
+                                            schema,
+                                            NULL,
+                                            schema_handler_wrapper,
+                                            NULL,
+                                            schema_handler_cleanup,
+                                            handler_data);
+    if (!tool) {
+        free(handler_data);
+        set_error("Failed to create tool with schema");
+        return -1;
+    }
+
+    if (mcp_tool_registry_register_tool(server->tool_registry, tool) != 0) {
+        mcp_tool_destroy(tool);
+        set_error("Failed to register schema tool");
+        return -1;
+    }
+
+    update_dynamic_capabilities(server);
     return 0;
 }
